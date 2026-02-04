@@ -1,0 +1,906 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Visual Studio 2026 — Todo</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- ============ TITLE BAR ============ -->
+  <header class="titlebar">
+    <div class="titlebar-left">
+      <div class="vs-icon">
+        <svg width="16" height="16" viewBox="0 0 16 16"><path fill="#845EF7" d="M1 3l3-2 5 4.5L13 2l2 1v10l-2 1-4-3.5L4 15l-3-2V3zm1.5 1v7L5 12.5V3.5L2.5 4zM6 5v6l4 3.5V1.5L6 5z"/></svg>
+      </div>
+      <nav class="menu-bar">
+        <span class="menu-item">File</span>
+        <span class="menu-item">Edit</span>
+        <span class="menu-item">View</span>
+        <span class="menu-item">Git</span>
+        <span class="menu-item">Project</span>
+        <span class="menu-item">Build</span>
+        <span class="menu-item">Debug</span>
+        <span class="menu-item">Test</span>
+        <span class="menu-item">Tools</span>
+        <span class="menu-item">Extensions</span>
+        <span class="menu-item">Help</span>
+      </nav>
+    </div>
+    <div class="titlebar-center">
+      <div class="search-box">
+        <svg class="search-icon" width="14" height="14" viewBox="0 0 16 16"><path fill="#999" d="M11.5 7a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Zm-.82 4.74a6 6 0 1 1 1.06-1.06l3.04 3.04a.75.75 0 1 1-1.06 1.06l-3.04-3.04Z"/></svg>
+        <span>Search (Ctrl+Q)</span>
+      </div>
+      <span class="titlebar-project-name">Todo</span>
+    </div>
+    <div class="titlebar-right">
+      <span class="user-avatar-circle">
+        <svg width="18" height="18" viewBox="0 0 16 16"><circle cx="8" cy="5" r="3" fill="#aaa"/><path fill="#aaa" d="M2 14c0-3 2.5-5 6-5s6 2 6 5H2z"/></svg>
+      </span>
+      <div class="window-controls">
+        <button class="win-btn minimize">&#x2013;</button>
+        <button class="win-btn maximize">&#9633;</button>
+        <button class="win-btn close">&#10005;</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ============ TOOLBAR ============ -->
+  <div class="toolbar">
+    <div class="toolbar-group">
+      <button class="tool-btn" title="Navigate Backward">&#8592;</button>
+      <button class="tool-btn" title="Navigate Forward">&#8594;</button>
+      <div class="toolbar-sep"></div>
+      <button class="tool-btn" title="Save (Ctrl+S)">&#128190;</button>
+      <button class="tool-btn" title="Save All">&#128190;&#128190;</button>
+      <div class="toolbar-sep"></div>
+      <button class="tool-btn" title="Undo">&#8630;</button>
+      <button class="tool-btn" title="Redo">&#8631;</button>
+    </div>
+    <div class="toolbar-group">
+      <div class="toolbar-sep"></div>
+      <select class="toolbar-select config-select">
+        <option>Debug</option>
+        <option>Release</option>
+      </select>
+      <select class="toolbar-select">
+        <option>Any CPU</option>
+        <option>x64</option>
+        <option>x86</option>
+      </select>
+    </div>
+    <div class="toolbar-group">
+      <button class="run-btn" title="Start (F5)">
+        <span class="play-icon">&#9654;</span> https
+      </button>
+      <button class="tool-btn run-dropdown" title="Start Options">&#9662;</button>
+      <div class="toolbar-sep"></div>
+      <button class="tool-btn" title="Hot Reload">&#128293;</button>
+    </div>
+    <div class="toolbar-group toolbar-right-icons">
+      <span class="toolbar-label">ABC</span>
+      <div class="toolbar-sep"></div>
+      <button class="tool-btn" title="Bookmark">&#128278;</button>
+      <button class="tool-btn" title="Bookmark">&#128278;</button>
+      <button class="tool-btn" title="Bookmark Window">&#128278;</button>
+      <button class="tool-btn" title="More">&#8943;</button>
+      <div class="toolbar-sep"></div>
+      <span class="copilot-badge-toolbar">
+        <svg width="14" height="14" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="#2ea043"/><path fill="#fff" d="M6 6a1 1 0 1 0 0 2 1 1 0 0 0 0-2Zm4 0a1 1 0 1 0 0 2 1 1 0 0 0 0-2ZM5 10s.5 2 3 2 3-2 3-2H5Z"/></svg>
+      </span>
+      <button class="tool-btn">&#9662;</button>
+      <button class="tool-btn" title="Live Share">&#128279;</button>
+      <span class="vs-version">D18.0</span>
+    </div>
+  </div>
+
+  <!-- ============ MAIN LAYOUT ============ -->
+  <div class="main-container">
+    <!-- ACTIVITY BAR (LEFT ICONS) -->
+    <aside class="activity-bar">
+      <button class="activity-btn" title="Solution Explorer">
+        <svg width="18" height="18" viewBox="0 0 16 16"><path fill="currentColor" d="M1.5 1h5l.5.5V6h4.5l.5.5v8l-.5.5h-10l-.5-.5v-13l.5-.5Zm5 5V2H2v12h9V7H7l-.5-.5Z"/></svg>
+      </button>
+      <button class="activity-btn active" title="Git Changes">
+        <svg width="18" height="18" viewBox="0 0 16 16"><path fill="currentColor" d="M12.5 8a2.5 2.5 0 1 0-1.73 2.38A3.5 3.5 0 0 1 7.5 13H6v-1.5l-4 3 4 3V16h1.5a5 5 0 0 0 4.86-3.83A2.5 2.5 0 0 0 12.5 8Z"/></svg>
+      </button>
+    </aside>
+
+    <!-- EDITOR AREA -->
+    <main class="editor-area">
+      <!-- TAB BAR -->
+      <div class="tab-bar">
+        <div class="tab">
+          <span class="tab-icon json-icon">{}</span>
+          launchSettings.json
+          <button class="tab-close">&times;</button>
+        </div>
+        <div class="tab">
+          <span class="tab-icon razor-icon">&lt;/&gt;</span>
+          MainLayout.razor
+          <button class="tab-close">&times;</button>
+        </div>
+        <div class="tab">
+          <span class="tab-icon css-icon">css</span>
+          app.css
+          <button class="tab-close">&times;</button>
+        </div>
+        <div class="tab">
+          <span class="tab-icon razor-icon">&lt;/&gt;</span>
+          Home.razor
+          <button class="tab-close">&times;</button>
+        </div>
+        <div class="tab active">
+          <span class="tab-icon razor-icon">&lt;/&gt;</span>
+          Todos.razor
+          <span class="tab-modified">&#9998;</span>
+          <button class="tab-close">&times;</button>
+        </div>
+        <div class="tab">
+          <span class="tab-icon cs-icon">C#</span>
+          TodoItem.cs
+          <button class="tab-close">&times;</button>
+        </div>
+        <div class="tab-overflow">&#8943;</div>
+        <div class="tab-settings">&#9881;</div>
+      </div>
+
+      <!-- BREADCRUMB -->
+      <div class="breadcrumb">
+        <div class="breadcrumb-left">
+          <select class="breadcrumb-select">
+            <option>Todo.Components.Pages.Todos</option>
+          </select>
+          <select class="breadcrumb-select">
+            <option>Dispose()</option>
+          </select>
+        </div>
+        <div class="breadcrumb-right">
+          <button class="breadcrumb-icon" title="Document Outline">&#9776;</button>
+        </div>
+      </div>
+
+      <!-- CODE EDITOR -->
+      <div class="code-container">
+        <div class="gutter" id="gutter"></div>
+        <div class="code-content" id="codeContent">
+          <div class="code-line"><span class="directive">@page</span> <span class="str">"/todos"</span></div>
+          <div class="code-line"><span class="directive">@using</span> <span class="ns">Todo.Models</span></div>
+          <div class="code-line"><span class="directive">@using</span> <span class="ns">Todo.Services</span></div>
+          <div class="code-line"><span class="directive">@inject</span> <span class="type">TodoService</span> <span class="field">TodoService</span></div>
+          <div class="code-line"><span class="directive">@implements</span> <span class="type">IDisposable</span></div>
+          <div class="code-line"></div>
+          <div class="code-line">&lt;<span class="type">PageTitle</span>&gt;Todo List&lt;/<span class="type">PageTitle</span>&gt;</div>
+          <div class="code-line"></div>
+          <div class="code-line">&lt;<span class="kw">div</span> <span class="attr">class</span>=<span class="str">"todo-container"</span>&gt;</div>
+          <div class="code-line">    &lt;<span class="kw">h1</span> <span class="attr">class</span>=<span class="str">"todo-header"</span>&gt;todos&lt;/<span class="kw">h1</span>&gt;</div>
+          <div class="code-line"></div>
+          <div class="code-line">    &lt;<span class="kw">div</span> <span class="attr">class</span>=<span class="str">"todo-main"</span>&gt;</div>
+          <div class="code-line">        &lt;<span class="kw">div</span> <span class="attr">class</span>=<span class="str">"new-todo-wrapper"</span>&gt;</div>
+          <div class="code-line">            &lt;<span class="kw">input</span> <span class="attr">class</span>=<span class="str">"new-todo-input"</span></div>
+          <div class="code-line">                   <span class="attr">placeholder</span>=<span class="str">"What needs to be done?"</span></div>
+          <div class="code-line">                   <span class="directive">@bind</span>=<span class="str">"newTodoTitle"</span></div>
+          <div class="code-line">                   <span class="directive">@onkeyup</span>=<span class="str">"HandleKeyPress"</span> /&gt;</div>
+          <div class="code-line">        &lt;/<span class="kw">div</span>&gt;</div>
+          <div class="code-line"></div>
+          <div class="code-line">        <span class="directive">@if</span> (todos.Any())</div>
+          <div class="code-line">        {</div>
+          <div class="code-line">            &lt;<span class="kw">div</span> <span class="attr">class</span>=<span class="str">"todo-list"</span>&gt;</div>
+          <div class="code-line">                <span class="directive">@foreach</span> (<span class="kw">var</span> todo <span class="kw">in</span> todos)</div>
+          <div class="code-line">                {</div>
+          <div class="code-line">                    &lt;<span class="kw">div</span> <span class="attr">class</span>=<span class="str">"todo-item @(todo.IsCompleted ? "completed" : "")"</span>&gt;</div>
+          <div class="code-line">                        &lt;<span class="kw">input</span> <span class="attr">type</span>=<span class="str">"checkbox"</span></div>
+          <div class="code-line">                               <span class="attr">class</span>=<span class="str">"todo-checkbox"</span></div>
+          <div class="code-line">                               <span class="attr">checked</span>=<span class="str">"@todo.IsCompleted"</span></div>
+          <div class="code-line">                               <span class="directive">@onchange</span>=<span class="str">"() =&gt; ToggleTodo(todo.Id)"</span> /&gt;</div>
+          <div class="code-line">                        &lt;<span class="kw">label</span> <span class="attr">class</span>=<span class="str">"todo-label"</span>&gt;@todo.Title&lt;/<span class="kw">label</span>&gt;</div>
+          <div class="code-line">                        &lt;<span class="kw">button</span> <span class="attr">class</span>=<span class="str">"todo-delete"</span> <span class="directive">@onclick</span>=<span class="str">"() =&gt; DeleteTodo(todo.Id)"</span>&gt;x&lt;/<span class="kw">button</span>&gt;</div>
+          <div class="code-line">                    &lt;/<span class="kw">div</span>&gt;</div>
+          <div class="code-line">                }</div>
+          <div class="code-line">            &lt;/<span class="kw">div</span>&gt;</div>
+          <div class="code-line"></div>
+          <div class="code-line">            &lt;<span class="kw">div</span> <span class="attr">class</span>=<span class="str">"todo-footer"</span>&gt;</div>
+          <div class="code-line">                &lt;<span class="kw">span</span> <span class="attr">class</span>=<span class="str">"todo-count"</span>&gt;</div>
+          <div class="code-line">                    &lt;<span class="kw">strong</span>&gt;@TodoService.GetActiveCount()&lt;/<span class="kw">strong</span>&gt; @(TodoService.GetActiveCount() == 1 ?</div>
+          <div class="code-line">                &lt;/<span class="kw">span</span>&gt;</div>
+          <div class="code-line"></div>
+          <div class="code-line">                &lt;<span class="kw">div</span> <span class="attr">class</span>=<span class="str">"filters"</span>&gt;</div>
+          <div class="code-line">                    &lt;<span class="kw">button</span> <span class="attr">class</span>=<span class="str">"filter-button @(currentFilter == FilterType.All ? "active" : "")"</span></div>
+          <div class="code-line">                            <span class="directive">@onclick</span>=<span class="str">"() =&gt; SetFilter(FilterType.All)"</span>&gt;</div>
+          <div class="code-line">                        All</div>
+          <div class="code-line">                    &lt;/<span class="kw">button</span>&gt;</div>
+          <div class="code-line">                    &lt;<span class="kw">button</span> <span class="attr">class</span>=<span class="str">"filter-button @(currentFilter == FilterType.Active ? "active" : "")"</span></div>
+        </div>
+      </div>
+
+      <!-- BOTTOM PANELS -->
+      <div class="bottom-panel" id="bottomPanel">
+        <div class="bottom-panel-resize" id="bottomPanelResize"></div>
+        <div class="bottom-tabs">
+          <button class="bottom-tab" data-panel="errorList">Error List</button>
+          <button class="bottom-tab active" data-panel="output">Output</button>
+          <button class="bottom-tab" data-panel="auto">Auto</button>
+          <button class="bottom-tab" data-panel="variables">Variables</button>
+          <button class="expand-btn" id="expandBtn" title="Expand/Collapse">&#9650;</button>
+        </div>
+        <div class="bottom-content" id="bottomContent">
+          <div class="panel-content" id="errorListPanel" style="display:none;">
+            <div class="no-issues"><span class="severity-ok">&#10003;</span> No issues found</div>
+          </div>
+          <div class="panel-content" id="outputPanel" style="display:block;">
+            <pre id="outputLog"></pre>
+          </div>
+          <div class="panel-content" id="autoPanel" style="display:none;">
+            <div class="no-issues"><span class="severity-ok">&#10003;</span> No issues found</div>
+          </div>
+          <div class="panel-content" id="variablesPanel" style="display:none;">
+            <div class="no-issues">No variables to display</div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- ============ COPILOT CHAT PANEL ============ -->
+    <aside class="chat-panel" id="chatPanel">
+      <!-- CHAT PANEL HEADER -->
+      <div class="chat-panel-titlebar">
+        <span class="chat-panel-title">GitHub Copilot Chat</span>
+        <div class="chat-panel-controls">
+          <button class="panel-ctrl-btn" title="Collapse">&#9662;</button>
+          <button class="panel-ctrl-btn" title="Pin">&#128204;</button>
+          <button class="panel-ctrl-btn" id="closeChatBtn" title="Close">&times;</button>
+        </div>
+      </div>
+
+      <!-- THREAD SELECTOR -->
+      <div class="thread-bar">
+        <div class="thread-select" id="threadSelect">
+          <svg width="14" height="14" viewBox="0 0 16 16"><path fill="#ccc" d="M2 3h12v2H2V3zm0 4h12v2H2V7zm0 4h8v2H2v-2z"/></svg>
+          <span>New Thread</span>
+          <span class="thread-chevron">&#9662;</span>
+        </div>
+        <div class="thread-actions">
+          <button class="thread-action-btn active-thread-btn" title="Pull Requests">
+            <svg width="16" height="16" viewBox="0 0 16 16"><rect x="2" y="2" width="12" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path fill="currentColor" d="M5 5h6v1H5V5zm0 2h6v1H5V7zm0 2h4v1H5V9z"/></svg>
+          </button>
+          <button class="thread-action-btn copilot-thread-btn" title="Copilot">
+            <svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="#2ea043"/><path fill="#fff" d="M6 6a1 1 0 1 0 0 2 1 1 0 0 0 0-2Zm4 0a1 1 0 1 0 0 2 1 1 0 0 0 0-2ZM5 10s.5 2 3 2 3-2 3-2H5Z"/></svg>
+          </button>
+          <button class="thread-action-btn" title="Settings">
+            <svg width="16" height="16" viewBox="0 0 16 16"><path fill="currentColor" d="M8 4.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7ZM6 8a2 2 0 1 1 4 0 2 2 0 0 1-4 0Z"/><path fill="currentColor" d="M9 1h-2l-.35 1.76-.93.38L4.1 2.27 2.69 3.68l.87 1.62-.38.93L1.41 6.58v2l1.76.35.38.93-.87 1.62 1.41 1.41 1.62-.87.93.38L7 14.17h2l.35-1.76.93-.38 1.62.87 1.41-1.41-.87-1.62.38-.93 1.76-.35v-2l-1.76-.35-.38-.93.87-1.62-1.41-1.41-1.62.87-.93-.38L9 1Z"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- PR THREADS VIEW (hidden by default, shown via toggle) -->
+      <div class="pr-threads-view" id="prThreadsView" style="display:none;">
+        <div class="pr-thread-item">
+          <svg class="pr-thread-icon" width="18" height="18" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="#888" stroke-width="1.2"/><path fill="#888" d="M5 6h6M5 8h6M5 10h4"/></svg>
+          <div class="pr-thread-content">
+            <div class="pr-thread-title">Complete settings page with theme selection, meal customization, and about section</div>
+            <a class="pr-thread-link">View Pull Request</a>
+          </div>
+          <span class="pr-thread-status">Ready to review</span>
+        </div>
+        <div class="pr-thread-item">
+          <svg class="pr-thread-icon" width="18" height="18" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="#888" stroke-width="1.2"/><path fill="#888" d="M5 6h6M5 8h6M5 10h4"/></svg>
+          <div class="pr-thread-content">
+            <div class="pr-thread-title">Add sentiment analysis with LLM integration for news articles</div>
+            <a class="pr-thread-link">View Pull Request</a>
+          </div>
+          <span class="pr-thread-status">Ready to review</span>
+        </div>
+        <div class="pr-thread-item">
+          <svg class="pr-thread-icon" width="18" height="18" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="#888" stroke-width="1.2"/><path fill="#888" d="M5 6h6M5 8h6M5 10h4"/></svg>
+          <div class="pr-thread-content">
+            <div class="pr-thread-title">Add sentiment analysis to AI news articles with LLM integration</div>
+            <a class="pr-thread-link">View Pull Request</a>
+          </div>
+          <span class="pr-thread-status">Ready to review</span>
+        </div>
+        <div class="pr-thread-item">
+          <svg class="pr-thread-icon" width="18" height="18" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="#888" stroke-width="1.2"/><path fill="#888" d="M5 6h6M5 8h6M5 10h4"/></svg>
+          <div class="pr-thread-content">
+            <div class="pr-thread-title">Add sentiment analysis for AI news articles</div>
+            <a class="pr-thread-link">View Pull Request</a>
+          </div>
+          <span class="pr-thread-status">Ready to review</span>
+        </div>
+      </div>
+
+      <!-- CHAT VIEW (default) -->
+      <div class="chat-view" id="chatView">
+        <!-- CHAT MESSAGES -->
+        <div class="chat-messages" id="chatMessages">
+          <!-- Welcome Screen -->
+          <div class="welcome-screen">
+            <div class="welcome-icon">
+              <svg width="72" height="72" viewBox="0 0 72 72">
+                <circle cx="36" cy="36" r="32" fill="none" stroke="#555" stroke-width="2.5"/>
+                <circle cx="26" cy="30" r="4" fill="#555"/>
+                <circle cx="46" cy="30" r="4" fill="#555"/>
+                <path d="M22 44 c0 0 4 10 14 10 s14-10 14-10" fill="none" stroke="#555" stroke-width="2.5" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <h2 class="welcome-title">Copilot Chat</h2>
+            <p class="welcome-subtitle">I might make mistakes, so check for accuracy.</p>
+
+            <div class="welcome-actions">
+              <button class="welcome-action-btn">
+                <svg width="16" height="16" viewBox="0 0 16 16"><path fill="#0078d4" d="M8 2l2.5 5H14l-3.5 3 1.5 5L8 12 4 15l1.5-5L2 7h3.5L8 2z"/></svg>
+                Optimize my code
+              </button>
+              <button class="welcome-action-btn">
+                <svg width="16" height="16" viewBox="0 0 16 16"><path fill="#0078d4" d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 12.5A5.5 5.5 0 1 1 8 2.5a5.5 5.5 0 0 1 0 11zM7 5h2v4H7V5zm0 5h2v2H7v-2z"/></svg>
+                Fix my code
+              </button>
+              <button class="welcome-action-btn">
+                <svg width="16" height="16" viewBox="0 0 16 16"><path fill="#0078d4" d="M2 2h12v1H2V2zm0 3h12v1H2V5zm0 3h8v1H2V8zm0 3h10v1H2v-1z"/></svg>
+                Write unit tests
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- CHAT INPUT -->
+        <div class="chat-input-area">
+          <!-- Slash command popup -->
+          <div class="slash-menu" id="slashMenu">
+            <div class="slash-row" data-cmd="/clear">
+              <span class="slash-cmd">clear</span>
+              <span class="slash-desc">Clear current thread in the chat window</span>
+            </div>
+            <div class="slash-row" data-cmd="/clearall">
+              <span class="slash-cmd">clearall</span>
+              <span class="slash-desc">Clear all threads in the chat window</span>
+            </div>
+            <div class="slash-row" data-cmd="/doc">
+              <span class="slash-cmd">doc</span>
+              <span class="slash-desc">Add a documentation comment for this symbol</span>
+            </div>
+            <div class="slash-row" data-cmd="/exp">
+              <span class="slash-cmd">exp</span>
+              <span class="slash-desc">Start experimental conversation thread</span>
+            </div>
+            <div class="slash-row" data-cmd="/explain">
+              <span class="slash-cmd">explain</span>
+              <span class="slash-desc">Explain the code</span>
+            </div>
+            <div class="slash-row" data-cmd="/fix">
+              <span class="slash-cmd">fix</span>
+              <span class="slash-desc">Propose a fix for problems in the selected code</span>
+            </div>
+            <div class="slash-row" data-cmd="/generate">
+              <span class="slash-cmd">generate</span>
+              <span class="slash-desc">Generate code to answer this question</span>
+            </div>
+            <div class="slash-row" data-cmd="/generateInstructions">
+              <span class="slash-cmd">generateInstructions</span>
+              <span class="slash-desc">Generate repo-level custom instructions for you...</span>
+            </div>
+            <div class="slash-row" data-cmd="/help">
+              <span class="slash-cmd">help</span>
+              <span class="slash-desc">Get help on Copilot chat</span>
+            </div>
+          </div>
+
+          <!-- Agent mode popup -->
+          <div class="agent-mode-popup" id="agentModePopup">
+            <div class="agent-mode-item" data-mode="ask">
+              <svg width="18" height="18" viewBox="0 0 16 16"><path fill="#ccc" d="M2 3h12v2H2V3zm0 4h12v2H2V7zm0 4h8v2H2v-2z"/></svg>
+              <div class="agent-mode-info">
+                <div class="agent-mode-name">Ask</div>
+                <div class="agent-mode-desc">You control what code to apply, review, and accept.</div>
+              </div>
+            </div>
+            <div class="agent-mode-item active" data-mode="agent">
+              <svg width="18" height="18" viewBox="0 0 16 16"><path fill="#b388ff" d="M8 1l2 3h4l-1 3 2 3h-4l-2 3-2-3H3l1-3-2-3h4l2-3z"/></svg>
+              <div class="agent-mode-info">
+                <div class="agent-mode-name">Agent</div>
+                <div class="agent-mode-desc">Copilot applies code, builds, fixes bugs, and more.</div>
+              </div>
+            </div>
+            <div class="agent-mode-item" data-mode="coding-agent">
+              <svg width="18" height="18" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5" fill="none" stroke="#ccc" stroke-width="1.5"/><circle cx="6" cy="7" r="1" fill="#ccc"/><circle cx="10" cy="7" r="1" fill="#ccc"/><path d="M6 10c0 0 1 1.5 2 1.5s2-1.5 2-1.5" fill="none" stroke="#ccc" stroke-width="1"/></svg>
+              <div class="agent-mode-info">
+                <div class="agent-mode-name">Copilot Coding Agent</div>
+                <div class="agent-mode-desc">An agent designed to help with creating remote Copilot Coding Agent sessions.</div>
+              </div>
+            </div>
+            <div class="agent-mode-item" data-mode="debugger">
+              <svg width="18" height="18" viewBox="0 0 16 16"><rect x="3" y="3" width="10" height="10" rx="2" fill="none" stroke="#ccc" stroke-width="1.5"/><path fill="#ccc" d="M6 7h4v2H6z"/></svg>
+              <div class="agent-mode-info">
+                <div class="agent-mode-name">Debugger</div>
+                <div class="agent-mode-desc">Debug with Copilot</div>
+              </div>
+            </div>
+            <div class="agent-mode-item" data-mode="vs">
+              <svg width="18" height="18" viewBox="0 0 16 16"><path fill="#845EF7" d="M1 3l3-2 5 4.5L13 2l2 1v10l-2 1-4-3.5L4 15l-3-2V3z"/></svg>
+              <div class="agent-mode-info">
+                <div class="agent-mode-name">VS</div>
+                <div class="agent-mode-desc">Ask questions about Visual Studio</div>
+              </div>
+            </div>
+            <div class="agent-mode-item" data-mode="profiler">
+              <svg width="18" height="18" viewBox="0 0 16 16"><path fill="#ccc" d="M2 12V8h2v4H2zm3 0V5h2v7H5zm3 0V2h2v10H8zm3 0V7h2v5h-2z"/></svg>
+              <div class="agent-mode-info">
+                <div class="agent-mode-name">Profiler</div>
+              </div>
+            </div>
+            <div class="agent-mode-item" data-mode="modernize">
+              <svg width="18" height="18" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5" fill="none" stroke="#ccc" stroke-width="1.5"/><circle cx="6" cy="7" r="1" fill="#ccc"/><circle cx="10" cy="7" r="1" fill="#ccc"/></svg>
+              <div class="agent-mode-info">
+                <div class="agent-mode-name">Modernize</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Model selector popup -->
+          <div class="model-popup" id="modelPopup">
+            <div class="model-section-title">Premium Models</div>
+            <div class="model-item" data-model="gpt-5.2-codex">
+              <span class="model-name">GPT-5.2-Codex</span>
+              <span class="model-rate">1x</span>
+            </div>
+            <div class="model-item" data-model="gpt-5">
+              <span class="model-name">GPT-5</span>
+              <span class="model-rate">1x</span>
+            </div>
+            <div class="model-item" data-model="gpt-5.1">
+              <span class="model-name">GPT-5.1</span>
+              <span class="model-rate">1x</span>
+            </div>
+            <div class="model-item" data-model="gpt-5.1-codex">
+              <span class="model-name">GPT-5.1-Codex</span>
+              <span class="model-rate">1x</span>
+            </div>
+            <div class="model-item" data-model="gpt-5.1-codex-mini">
+              <span class="model-name">GPT-5.1-Codex-Mini</span>
+              <span class="model-rate">0.33x</span>
+            </div>
+            <div class="model-item" data-model="gpt-5.1-codex-max">
+              <span class="model-name">GPT-5.1-Codex-Max</span>
+              <span class="model-rate">1x</span>
+            </div>
+            <div class="model-item" data-model="claude-sonnet-4">
+              <span class="model-name">Claude Sonnet 4</span>
+              <span class="model-rate">1x</span>
+            </div>
+            <div class="model-item" data-model="claude-sonnet-4.5">
+              <span class="model-name">Claude Sonnet 4.5</span>
+              <span class="model-rate">1x</span>
+            </div>
+            <div class="model-item active" data-model="claude-opus-4.5">
+              <span class="model-name">Claude Opus 4.5</span>
+              <span class="model-rate">3x</span>
+            </div>
+            <div class="model-item" data-model="claude-haiku-4.5">
+              <span class="model-name">Claude Haiku 4.5</span>
+              <span class="model-rate">0.33x</span>
+            </div>
+            <div class="model-item" data-model="gemini-3-pro">
+              <span class="model-name"><span class="preview-warning">&#9888;</span> Gemini 3 Pro (Preview)</span>
+              <span class="model-rate">1x</span>
+            </div>
+            <div class="model-item" data-model="gemini-3-flash">
+              <span class="model-name"><span class="preview-warning">&#9888;</span> Gemini 3 Flash (Preview)</span>
+              <span class="model-rate">0.33x</span>
+            </div>
+          </div>
+
+          <!-- Hint text -->
+          <div class="chat-hint" id="chatHint">
+            Use <span class="hint-key">#</span> for references, <span class="hint-key">/</span> for commands, and <span class="hint-key">@</span> for extensions.
+          </div>
+
+          <!-- Input box -->
+          <div class="input-wrapper">
+            <button class="add-context-btn" id="addContextBtn" title="Add context">+</button>
+            <input type="text" class="chat-input" id="chatInput" placeholder="Ask Copilot" />
+          </div>
+
+          <!-- Bottom bar: agent mode + model + actions -->
+          <div class="chat-bottom-bar">
+            <div class="chat-bottom-left">
+              <button class="agent-selector" id="agentSelector">
+                <svg width="14" height="14" viewBox="0 0 16 16"><path fill="#b388ff" d="M8 1l2 3h4l-1 3 2 3h-4l-2 3-2-3H3l1-3-2-3h4l2-3z"/></svg>
+                Agent
+                <span class="selector-chevron">&#9662;</span>
+              </button>
+              <button class="model-selector" id="modelSelector">
+                Claude Opus 4.5
+                <span class="selector-chevron">&#9662;</span>
+              </button>
+            </div>
+            <div class="chat-bottom-right">
+              <button class="chat-action-icon" title="Voice off">
+                <svg width="16" height="16" viewBox="0 0 16 16"><path fill="#888" d="M8 1a2 2 0 0 0-2 2v4a2 2 0 0 0 4 0V3a2 2 0 0 0-2-2z"/><path fill="#888" d="M4 6v1a4 4 0 0 0 8 0V6h1v1a5 5 0 0 1-4.5 4.97V14H10v1H6v-1h1.5v-2.03A5 5 0 0 1 3 7V6h1z"/><line x1="2" y1="2" x2="14" y2="14" stroke="#888" stroke-width="1.5"/></svg>
+              </button>
+              <button class="chat-action-icon" title="Attach file">
+                <svg width="16" height="16" viewBox="0 0 16 16"><path fill="#888" d="M10.5 2.5a3 3 0 0 0-4.24 0L2.4 6.38a4.5 4.5 0 0 0 6.36 6.36l3.88-3.88-.7-.7-3.89 3.88a3.5 3.5 0 0 1-4.95-4.95l3.88-3.88a2 2 0 0 1 2.83 2.83L6.4 9.47a.5.5 0 0 1-.7-.7l2.47-2.48-.71-.7-2.47 2.47a1.5 1.5 0 0 0 2.12 2.12l3.42-3.43a3 3 0 0 0 0-4.24z"/></svg>
+              </button>
+              <button class="send-btn" id="sendBtn" title="Send (Enter)">
+                <svg width="16" height="16" viewBox="0 0 16 16"><path fill="currentColor" d="M1 1.5L15 8 1 14.5V9l9-1-9-1V1.5Z"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- STATUS BAR -->
+  <footer class="statusbar">
+    <div class="status-left">
+      <span class="status-item">100 %</span>
+      <span class="status-item ok-status">&#10003; No issues found</span>
+    </div>
+    <div class="status-center">
+      <div class="status-scrollbar"></div>
+    </div>
+    <div class="status-right">
+      <span class="status-item">Ln 139, Ch 1</span>
+      <span class="status-item">SPC</span>
+      <span class="status-item">CRLF</span>
+      <span class="status-item">Windows 1252</span>
+      <div class="status-sep"></div>
+      <span class="status-item">
+        <svg width="10" height="10" viewBox="0 0 16 16"><path fill="currentColor" d="M4 8l4-6v4h4l-4 6V8H4z"/></svg>
+      </span>
+      <span class="status-item">0 / 0 &#9650;</span>
+      <span class="status-item">&#9998; 9</span>
+      <span class="status-item branch-status">
+        <svg width="10" height="10" viewBox="0 0 16 16"><circle cx="5" cy="4" r="2" fill="currentColor"/><circle cx="5" cy="12" r="2" fill="currentColor"/><circle cx="11" cy="8" r="2" fill="currentColor"/><path d="M5 6v4M7 8h2" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+        master &#9650;
+      </span>
+      <span class="status-item">
+        <svg width="12" height="12" viewBox="0 0 16 16"><rect x="1" y="4" width="14" height="8" rx="1" fill="none" stroke="currentColor"/><path fill="currentColor" d="M4 7h2v2H4z"/></svg>
+        Todo
+      </span>
+      <span class="status-item">&#9832;</span>
+      <button class="status-item audit-status-btn" id="auditToggle" title="SDK Feature Audit">
+        <svg width="12" height="12" viewBox="0 0 16 16"><path fill="currentColor" d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 12.5a5.5 5.5 0 1 1 0-11 5.5 5.5 0 0 1 0 11zM7 4h2v5H7V4zm0 6h2v2H7v-2z"/></svg>
+        SDK Audit
+      </button>
+    </div>
+  </footer>
+  <div class="audit-panel" id="auditPanel">
+    <div class="audit-header">
+      <h3>VS 2026 GUI Parity Audit</h3>
+      <button class="audit-close" id="auditClose">&times;</button>
+    </div>
+    <div class="audit-legend">
+      <span class="legend-item"><span class="dot connected"></span> Working (SDK + GUI)</span>
+      <span class="legend-item"><span class="dot ui-only"></span> GUI exists, needs SDK wiring</span>
+      <span class="legend-item"><span class="dot sdk-only"></span> SDK ready, needs GUI built</span>
+    </div>
+    <div class="audit-stats">
+      <span class="stat"><strong>2</strong> Working</span>
+      <span class="stat"><strong>12</strong> Wire SDK to GUI</span>
+      <span class="stat"><strong>38</strong> Build GUI</span>
+    </div>
+    <div class="audit-content">
+      <!-- WORKING: SDK + GUI CONNECTED -->
+      <div class="audit-section">
+        <h4>Working (SDK + GUI)</h4>
+        <div class="audit-item connected">
+          <span class="status-dot"></span>
+          <span class="feature-name">Chat Streaming</span>
+          <span class="feature-status">SDK streams → chat bubble renders</span>
+        </div>
+        <div class="audit-item connected">
+          <span class="status-dot"></span>
+          <span class="feature-name">Multi-turn Context</span>
+          <span class="feature-status">Session history → conversation flows</span>
+        </div>
+      </div>
+
+      <!-- WIRE SDK TO EXISTING GUI -->
+      <div class="audit-section">
+        <h4>Wire SDK to Existing GUI</h4>
+        <p class="audit-note">These UI elements exist in the mockup. Just need to call SDK methods.</p>
+        <div class="audit-item ui-only">
+          <span class="status-dot"></span>
+          <span class="feature-name">Model Selector Dropdown</span>
+          <span class="feature-status">Wire: createSession({model: selected})</span>
+        </div>
+        <div class="audit-item ui-only">
+          <span class="status-dot"></span>
+          <span class="feature-name">Agent Mode Selector</span>
+          <span class="feature-status">Wire: systemMessage per mode + tools</span>
+        </div>
+        <div class="audit-item ui-only">
+          <span class="status-dot"></span>
+          <span class="feature-name">/explain, /fix, /generate Commands</span>
+          <span class="feature-status">Wire: Prepend system prompt to message</span>
+        </div>
+        <div class="audit-item ui-only">
+          <span class="status-dot"></span>
+          <span class="feature-name">/doc Command</span>
+          <span class="feature-status">Wire: Documentation prompt + symbol context</span>
+        </div>
+        <div class="audit-item ui-only">
+          <span class="status-dot"></span>
+          <span class="feature-name">New Thread Button</span>
+          <span class="feature-status">Wire: Reset session + localStorage archive</span>
+        </div>
+        <div class="audit-item ui-only">
+          <span class="status-dot"></span>
+          <span class="feature-name">Copy Code Button</span>
+          <span class="feature-status">Wire: navigator.clipboard.writeText()</span>
+        </div>
+        <div class="audit-item ui-only">
+          <span class="status-dot"></span>
+          <span class="feature-name">File Attachment (Paperclip)</span>
+          <span class="feature-status">Wire: Read file → append to prompt</span>
+        </div>
+        <div class="audit-item ui-only">
+          <span class="status-dot"></span>
+          <span class="feature-name">+ Add Context Button</span>
+          <span class="feature-status">Wire: File picker → inject content</span>
+        </div>
+        <div class="audit-item ui-only">
+          <span class="status-dot"></span>
+          <span class="feature-name">Voice Input (Mic)</span>
+          <span class="feature-status">Wire: Web Speech API → chat input</span>
+        </div>
+        <div class="audit-item ui-only">
+          <span class="status-dot"></span>
+          <span class="feature-name">PR Threads View</span>
+          <span class="feature-status">Wire: GitHub MCP → existing list UI</span>
+        </div>
+        <div class="audit-item ui-only">
+          <span class="status-dot"></span>
+          <span class="feature-name">Debugger Agent Mode</span>
+          <span class="feature-status">Wire: DAP + specialized prompts</span>
+        </div>
+        <div class="audit-item ui-only">
+          <span class="status-dot"></span>
+          <span class="feature-name">Profiler Agent Mode</span>
+          <span class="feature-status">Wire: @profiler system prompt</span>
+        </div>
+      </div>
+
+      <!-- EDITOR INTEGRATION GUI -->
+      <div class="audit-section">
+        <h4>Editor Integration (Build GUI)</h4>
+        <p class="audit-note">SDK handles AI. Need editor GUI to show results.</p>
+        <div class="audit-item sdk-only">
+          <span class="status-dot"></span>
+          <span class="feature-name">Insert at Cursor</span>
+          <span class="feature-status">GUI: Track cursor position, insert text</span>
+        </div>
+        <div class="audit-item sdk-only">
+          <span class="status-dot"></span>
+          <span class="feature-name">Apply Diff / Accept Changes</span>
+          <span class="feature-status">GUI: Diff view + accept/reject buttons</span>
+        </div>
+        <div class="audit-item sdk-only">
+          <span class="status-dot"></span>
+          <span class="feature-name">Code Selection Context</span>
+          <span class="feature-status">GUI: Track selection → send to SDK</span>
+        </div>
+        <div class="audit-item sdk-only">
+          <span class="status-dot"></span>
+          <span class="feature-name">Adaptive Paste</span>
+          <span class="feature-status">GUI: Paste detection bar, Tab to accept</span>
+        </div>
+        <div class="audit-item sdk-only">
+          <span class="status-dot"></span>
+          <span class="feature-name">Context Menu (Right-click)</span>
+          <span class="feature-status">GUI: Menu → Explain/Optimize/Tests actions</span>
+        </div>
+        <div class="audit-item sdk-only">
+          <span class="status-dot"></span>
+          <span class="feature-name">Inline Code Suggestions</span>
+          <span class="feature-status">GUI: Ghost text at cursor position</span>
+        </div>
+        <div class="audit-item sdk-only">
+          <span class="status-dot"></span>
+          <span class="feature-name">CodeLens Integration</span>
+          <span class="feature-status">GUI: Action links above methods</span>
+        </div>
+      </div>
+
+      <!-- CHAT ENHANCEMENTS GUI -->
+      <div class="audit-section">
+        <h4>Chat Enhancements (Build GUI)</h4>
+        <p class="audit-note">SDK can process these. Need rendering GUI.</p>
+        <div class="audit-item sdk-only">
+          <span class="status-dot"></span>
+          <span class="feature-name">Mermaid Diagram Rendering</span>
+          <span class="feature-status">GUI: Mermaid.js renderer in chat</span>
+        </div>
+        <div class="audit-item sdk-only">
+          <span class="status-dot"></span>
+          <span class="feature-name">URL Context (Paste URL)</span>
+          <span class="feature-status">GUI: Detect URL, show fetch preview</span>
+        </div>
+        <div class="audit-item sdk-only">
+          <span class="status-dot"></span>
+          <span class="feature-name">#changes / #commit References</span>
+          <span class="feature-status">GUI: Autocomplete dropdown for git refs</span>
+        </div>
+        <div class="audit-item sdk-only">
+          <span class="status-dot"></span>
+          <span class="feature-name">#file Autocomplete</span>
+          <span class="feature-status">GUI: File picker dropdown on # type</span>
+        </div>
+        <div class="audit-item sdk-only">
+          <span class="status-dot"></span>
+          <span class="feature-name">Tool Call Visualization</span>
+          <span class="feature-status">GUI: Show "Searching files..." etc.</span>
+        </div>
+        <div class="audit-item sdk-only">
+          <span class="status-dot"></span>
+          <span class="feature-name">MCP Elicitation Responses</span>
+          <span class="feature-status">GUI: Prompt user when MCP needs input</span>
+        </div>
+      </div>
+
+      <!-- DEBUGGING GUI -->
+      <div class="audit-section">
+        <h4>Debugging Integration (Build GUI)</h4>
+        <p class="audit-note">SDK can analyze. Need debugger GUI hooks.</p>
+        <div class="audit-item sdk-only">
+          <span class="status-dot"></span>
+          <span class="feature-name">Inline Variable Values</span>
+          <span class="feature-status">GUI: Show values next to variables</span>
+        </div>
+        <div class="audit-item sdk-only">
+          <span class="status-dot"></span>
+          <span class="feature-name">Inline If-Statement Results</span>
+          <span class="feature-status">GUI: Show true/false inline</span>
+        </div>
+        <div class="audit-item sdk-only">
+          <span class="status-dot"></span>
+          <span class="feature-name">Inline Return Values</span>
+          <span class="feature-status">GUI: Show return value at call site</span>
+        </div>
+        <div class="audit-item sdk-only">
+          <span class="status-dot"></span>
+          <span class="feature-name">Auto-Fix Breakpoints</span>
+          <span class="feature-status">GUI: Breakpoint tooltip + "Ask Copilot"</span>
+        </div>
+        <div class="audit-item sdk-only">
+          <span class="status-dot"></span>
+          <span class="feature-name">Exception Helper Enhancement</span>
+          <span class="feature-status">GUI: Exception popup with Copilot analysis</span>
+        </div>
+        <div class="audit-item sdk-only">
+          <span class="status-dot"></span>
+          <span class="feature-name">Debug Unit Test with Copilot</span>
+          <span class="feature-status">GUI: Test explorer context action</span>
+        </div>
+        <div class="audit-item sdk-only">
+          <span class="status-dot"></span>
+          <span class="feature-name">Output Window Integration</span>
+          <span class="feature-status">GUI: Runtime logs → SDK context</span>
+        </div>
+      </div>
+
+      <!-- PROFILER GUI -->
+      <div class="audit-section">
+        <h4>Profiler Integration (Build GUI)</h4>
+        <p class="audit-note">SDK can analyze perf data. Need profiler GUI.</p>
+        <div class="audit-item sdk-only">
+          <span class="status-dot"></span>
+          <span class="feature-name">Profiler Launch Recommendations</span>
+          <span class="feature-status">GUI: Copilot suggests which profiler</span>
+        </div>
+        <div class="audit-item sdk-only">
+          <span class="status-dot"></span>
+          <span class="feature-name">CodeLens: Optimize Allocations</span>
+          <span class="feature-status">GUI: Link above benchmarks</span>
+        </div>
+        <div class="audit-item sdk-only">
+          <span class="status-dot"></span>
+          <span class="feature-name">.NET Allocation "Ask Copilot"</span>
+          <span class="feature-status">GUI: Button in allocation tool</span>
+        </div>
+        <div class="audit-item sdk-only">
+          <span class="status-dot"></span>
+          <span class="feature-name">Profiler Thread Summarization</span>
+          <span class="feature-status">GUI: Auto-summarize UI at token limit</span>
+        </div>
+      </div>
+
+      <!-- CODE REVIEW GUI -->
+      <div class="audit-section">
+        <h4>Code Review Integration (Build GUI)</h4>
+        <p class="audit-note">SDK can generate reviews. Need diff/PR GUI.</p>
+        <div class="audit-item sdk-only">
+          <span class="status-dot"></span>
+          <span class="feature-name">Inline PR Comments</span>
+          <span class="feature-status">GUI: Comments in diff gutter</span>
+        </div>
+        <div class="audit-item sdk-only">
+          <span class="status-dot"></span>
+          <span class="feature-name">Apply PR Comment Suggestion</span>
+          <span class="feature-status">GUI: "Apply" button on comments</span>
+        </div>
+        <div class="audit-item sdk-only">
+          <span class="status-dot"></span>
+          <span class="feature-name">Comment Navigation List</span>
+          <span class="feature-status">GUI: List view in Git Changes</span>
+        </div>
+        <div class="audit-item sdk-only">
+          <span class="status-dot"></span>
+          <span class="feature-name">GitHub Context in Exceptions</span>
+          <span class="feature-status">GUI: Link to related issues/PRs</span>
+        </div>
+      </div>
+
+      <!-- MCP/TOOLS GUI -->
+      <div class="audit-section">
+        <h4>MCP & Tools Management (Build GUI)</h4>
+        <p class="audit-note">SDK supports MCP. Need config/status GUI.</p>
+        <div class="audit-item sdk-only">
+          <span class="status-dot"></span>
+          <span class="feature-name">MCP Server List</span>
+          <span class="feature-status">GUI: Settings panel with servers</span>
+        </div>
+        <div class="audit-item sdk-only">
+          <span class="status-dot"></span>
+          <span class="feature-name">MCP Server Toggle (On/Off)</span>
+          <span class="feature-status">GUI: Checkboxes in chat tools menu</span>
+        </div>
+        <div class="audit-item sdk-only">
+          <span class="status-dot"></span>
+          <span class="feature-name">MCP Auth Management</span>
+          <span class="feature-status">GUI: Credentials settings panel</span>
+        </div>
+        <div class="audit-item sdk-only">
+          <span class="status-dot"></span>
+          <span class="feature-name">MCP Instructions Viewer</span>
+          <span class="feature-status">GUI: Show server instructions</span>
+        </div>
+        <div class="audit-item sdk-only">
+          <span class="status-dot"></span>
+          <span class="feature-name">NuGet MCP Integration</span>
+          <span class="feature-status">GUI: Package vulnerability UI</span>
+        </div>
+      </div>
+
+      <!-- SEARCH GUI -->
+      <div class="audit-section">
+        <h4>Search Enhancement (Build GUI)</h4>
+        <div class="audit-item sdk-only">
+          <span class="status-dot"></span>
+          <span class="feature-name">"Did You Mean?" Suggestions</span>
+          <span class="feature-status">GUI: Search dropdown with suggestions</span>
+        </div>
+      </div>
+
+      <!-- SPECIALIZED AGENTS -->
+      <div class="audit-section">
+        <h4>Specialized Agents (Build GUI)</h4>
+        <p class="audit-note">SDK supports custom agents. Need specialized UIs.</p>
+        <div class="audit-item sdk-only">
+          <span class="status-dot"></span>
+          <span class="feature-name">WinForms Agent UI</span>
+          <span class="feature-status">GUI: Designer-aware prompts</span>
+        </div>
+        <div class="audit-item sdk-only">
+          <span class="status-dot"></span>
+          <span class="feature-name">C#/C++ Refactor Agent UI</span>
+          <span class="feature-status">GUI: Refactor preview panel</span>
+        </div>
+        <div class="audit-item sdk-only">
+          <span class="status-dot"></span>
+          <span class="feature-name">Cloud Agent Task Delegation</span>
+          <span class="feature-status">GUI: Background task panel + PR link</span>
+        </div>
+        <div class="audit-item sdk-only">
+          <span class="status-dot"></span>
+          <span class="feature-name">.NET Modernization Workflow</span>
+          <span class="feature-status">GUI: Assessment → Plan → Execute wizard</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
