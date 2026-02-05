@@ -1,4 +1,4 @@
-import { CopilotClient } from "@github/copilot-sdk";
+import { CopilotClient, defineTool } from "@github/copilot-sdk";
 import express from "express";
 import cors from "cors";
 import fs from "fs/promises";
@@ -16,20 +16,97 @@ app.use(express.static("."));
 // Project directory to work with (can be changed)
 let PROJECT_DIR = process.env.PROJECT_DIR || process.cwd();
 
+// --- Define Tools using defineTool API ---
+const readFileTool = defineTool("readFile", {
+  description: "Read the contents of a file in the project",
+  parameters: {
+    type: "object",
+    properties: {
+      path: { type: "string", description: "The file path to read" }
+    },
+    required: ["path"]
+  },
+  handler: async (args) => {
+    const filePath = args.path.startsWith("/") ? args.path : path.join(PROJECT_DIR, args.path);
+    console.log(`[Tool] Reading: ${filePath}`);
+    try {
+      const content = await fs.readFile(filePath, "utf-8");
+      return { success: true, content, path: filePath };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  }
+});
+
+const writeFileTool = defineTool("writeFile", {
+  description: "Write content to a file in the project. Always write the complete file content.",
+  parameters: {
+    type: "object",
+    properties: {
+      path: { type: "string", description: "The file path to write" },
+      content: { type: "string", description: "The complete file content to write" }
+    },
+    required: ["path", "content"]
+  },
+  handler: async (args) => {
+    const filePath = args.path.startsWith("/") ? args.path : path.join(PROJECT_DIR, args.path);
+    console.log(`[Tool] Writing: ${filePath}`);
+    try {
+      await fs.writeFile(filePath, args.content, "utf-8");
+      // Notify client about the file change
+      if (currentRes) {
+        currentRes.write(`data: ${JSON.stringify({ type: "tool", name: "writeFile", args: { path: filePath }, result: { success: true } })}\n\n`);
+      }
+      return { success: true, message: `File written: ${filePath}` };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  }
+});
+
+const listFilesTool = defineTool("listFiles", {
+  description: "List files in a directory",
+  parameters: {
+    type: "object",
+    properties: {
+      directory: { type: "string", description: "The directory path to list" }
+    },
+    required: ["directory"]
+  },
+  handler: async (args) => {
+    const dir = args.directory.startsWith("/") ? args.directory : path.join(PROJECT_DIR, args.directory);
+    console.log(`[Tool] Listing: ${dir}`);
+    try {
+      const entries = await fs.readdir(dir, { withFileTypes: true });
+      const files = entries
+        .filter(e => !e.name.startsWith('.') && e.name !== 'node_modules')
+        .map(e => ({ name: e.name, isDirectory: e.isDirectory() }));
+      return { success: true, files, directory: dir };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  }
+});
+
 // --- Authentication Status ---
 let authStatus = { authenticated: false, user: null, error: null };
 let copilotReady = false;
 
+// Find gh command path
+const GH_CMD = process.platform === 'darwin'
+  ? '/opt/homebrew/bin/gh'
+  : 'gh';
+
 async function checkAuth() {
   try {
     // Check auth status
-    const { stdout } = await execAsync('gh auth status 2>&1');
+    const { stdout } = await execAsync(`${GH_CMD} auth status 2>&1`);
     const userMatch = stdout.match(/Logged in to github\.com account (\S+)/i) ||
                       stdout.match(/Logged in to github\.com as (\S+)/i);
 
     // Get token and set environment variable for Copilot SDK
     try {
-      const { stdout: token } = await execAsync('gh auth token');
+      const { stdout: token } = await execAsync(`${GH_CMD} auth token`);
       process.env.GH_TOKEN = token.trim();
     } catch (e) {
       // Token fetch failed but we're still authenticated
@@ -175,15 +252,20 @@ async function getOrCreateSession(mode = "ask") {
 
   const systemPrompts = {
     ask: "You are GitHub Copilot inside Visual Studio 2026. Answer concisely about coding topics. When showing code, use markdown fenced code blocks with the language specified.",
-    agent: `You are GitHub Copilot Agent inside Visual Studio 2026. You can read and edit files in the user's project.
+    agent: `You are GitHub Copilot Agent inside Visual Studio 2026. You have tools to read and write files.
 
-When the user asks you to make changes:
-1. First read the relevant files to understand the current code
-2. Then write the modified content back to the file
-3. Explain what changes you made
+IMPORTANT: You MUST use the writeFile tool to create or modify files. Do NOT just describe what you would do - actually use the tool.
 
-Always use the tools available to you. Be proactive in making changes when asked.
-When editing files, write the COMPLETE file content, not just the changes.`
+Available tools:
+- readFile: Read a file's contents
+- writeFile: Create or overwrite a file with content
+- listFiles: List files in a directory
+
+When the user asks you to create or modify a file:
+1. Use the writeFile tool with the full file path and complete content
+2. After the tool succeeds, briefly confirm what you did
+
+Always use the tools - never just describe the code without writing it.`
   };
 
   console.log(`[SDK] Creating session for mode: ${mode}`);
@@ -196,42 +278,7 @@ When editing files, write the COMPLETE file content, not just the changes.`
 
   // Add tools for agent mode
   if (mode === "agent") {
-    sessionConfig.tools = [
-      {
-        name: "readFile",
-        description: "Read the contents of a file in the project",
-        parameters: {
-          type: "object",
-          properties: {
-            path: { type: "string", description: "The file path to read" }
-          },
-          required: ["path"]
-        }
-      },
-      {
-        name: "writeFile",
-        description: "Write content to a file in the project. Always write the complete file content.",
-        parameters: {
-          type: "object",
-          properties: {
-            path: { type: "string", description: "The file path to write" },
-            content: { type: "string", description: "The complete file content to write" }
-          },
-          required: ["path", "content"]
-        }
-      },
-      {
-        name: "listFiles",
-        description: "List files in a directory",
-        parameters: {
-          type: "object",
-          properties: {
-            directory: { type: "string", description: "The directory path to list" }
-          },
-          required: ["directory"]
-        }
-      }
-    ];
+    sessionConfig.tools = [readFileTool, writeFileTool, listFilesTool];
   }
 
   const session = await client.createSession(sessionConfig);
@@ -265,42 +312,6 @@ function sendToolCall(name, args, result) {
   sendEvent("tool", { name, args, result });
 }
 
-// Tool execution
-async function executeTool(name, args) {
-  sendLog(`[Tool] Executing: ${name}`);
-
-  try {
-    switch (name) {
-      case "readFile": {
-        const filePath = args.path.startsWith("/") ? args.path : path.join(PROJECT_DIR, args.path);
-        const content = await fs.readFile(filePath, "utf-8");
-        sendLog(`[Tool] Read ${filePath} (${content.length} chars)`);
-        return { success: true, content };
-      }
-      case "writeFile": {
-        const filePath = args.path.startsWith("/") ? args.path : path.join(PROJECT_DIR, args.path);
-        await fs.writeFile(filePath, args.content, "utf-8");
-        sendLog(`[Tool] Wrote ${filePath} (${args.content.length} chars)`);
-        sendToolCall(name, { path: filePath }, { success: true });
-        return { success: true, message: `File written: ${filePath}` };
-      }
-      case "listFiles": {
-        const dir = args.directory.startsWith("/") ? args.directory : path.join(PROJECT_DIR, args.directory);
-        const entries = await fs.readdir(dir, { withFileTypes: true });
-        const files = entries
-          .filter(e => !e.name.startsWith('.') && e.name !== 'node_modules')
-          .map(e => ({ name: e.name, isDirectory: e.isDirectory() }));
-        sendLog(`[Tool] Listed ${dir} (${files.length} entries)`);
-        return { success: true, files };
-      }
-      default:
-        return { error: `Unknown tool: ${name}` };
-    }
-  } catch (err) {
-    sendLog(`[Tool] Error: ${err.message}`);
-    return { error: err.message };
-  }
-}
 
 // Setup event handlers for a session
 function setupSessionHandlers(session) {
@@ -313,11 +324,11 @@ function setupSessionHandlers(session) {
     sendText(chunk);
   });
 
-  session.on("tool.invocation", async (event) => {
-    const { name, arguments: args } = event.data;
-    sendLog(`[SDK] Tool invocation: ${name}`);
-    const result = await executeTool(name, args);
-    return result;
+  // Tools defined with defineTool() have their own handlers
+  // This event is for logging purposes
+  session.on("tool.invocation", (event) => {
+    const { name } = event.data || {};
+    if (name) sendLog(`[SDK] Tool called: ${name}`);
   });
 
   session.on("session.idle", () => {
