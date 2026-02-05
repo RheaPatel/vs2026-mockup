@@ -959,16 +959,59 @@ src/
             fullText += event.content;
             textEl.innerHTML = renderMarkdown(fullText);
             chatMessages.scrollTop = chatMessages.scrollHeight;
+          } else if (event.type === 'toolStatus') {
+            // Show tool activity in the chat
+            const toolName = event.tool;
+            const status = event.status;
+
+            if (status === 'running') {
+              // Show tool is running
+              const toolIndicator = document.createElement('div');
+              toolIndicator.className = 'tool-indicator';
+              toolIndicator.id = `tool-${toolName}-indicator`;
+              if (toolName === 'listFiles') {
+                toolIndicator.innerHTML = `<span class="tool-icon">📂</span> Exploring ${event.directory || 'directory'}...`;
+              } else if (toolName === 'readFile') {
+                toolIndicator.innerHTML = `<span class="tool-icon">📖</span> Reading ${event.path}...`;
+              } else if (toolName === 'writeFile') {
+                toolIndicator.innerHTML = `<span class="tool-icon">✏️</span> Writing ${event.path}...`;
+              }
+              textEl.appendChild(toolIndicator);
+              chatMessages.scrollTop = chatMessages.scrollHeight;
+              appendLog(`[Agent] ${toolName}: ${event.path || event.directory || ''}`);
+            } else if (status === 'success') {
+              // Update indicator to show success
+              const indicator = document.getElementById(`tool-${toolName}-indicator`);
+              if (indicator) {
+                if (toolName === 'listFiles') {
+                  indicator.innerHTML = `<span class="tool-icon">✅</span> Found ${event.count} items in ${event.directory}`;
+                } else if (toolName === 'readFile') {
+                  indicator.innerHTML = `<span class="tool-icon">✅</span> Read ${event.path}`;
+                } else if (toolName === 'writeFile') {
+                  indicator.innerHTML = `<span class="tool-icon">✅</span> Wrote ${event.path} (${event.bytesWritten} bytes)`;
+                  // Open the file and refresh tree
+                  setTimeout(async () => {
+                    await openFile(event.path);
+                    loadFileTree();
+                  }, 100);
+                }
+                indicator.classList.add('tool-success');
+              }
+            } else if (status === 'error') {
+              const indicator = document.getElementById(`tool-${toolName}-indicator`);
+              if (indicator) {
+                indicator.innerHTML = `<span class="tool-icon">❌</span> Failed: ${event.error}`;
+                indicator.classList.add('tool-error');
+              }
+            }
           } else if (event.type === 'tool') {
-            // Tool was executed - refresh the file if it was written
+            // Legacy tool event - refresh the file if it was written
             if (event.name === 'writeFile' && event.result?.success) {
               const filePath = event.args?.path;
               if (filePath) {
-                // Open or refresh the file
                 await openFile(filePath);
                 appendLog(`[Agent] Modified: ${filePath}`);
               }
-              // Also refresh file tree
               loadFileTree();
             }
           } else if (event.type === 'error') {

@@ -18,71 +18,93 @@ let PROJECT_DIR = process.env.PROJECT_DIR || process.cwd();
 
 // --- Define Tools using defineTool API ---
 const readFileTool = defineTool("readFile", {
-  description: "Read the contents of a file in the project",
+  description: "Read the contents of a file in the project. Use this to understand existing code before making changes.",
   parameters: {
     type: "object",
     properties: {
-      path: { type: "string", description: "The file path to read" }
+      path: { type: "string", description: "The file path to read (relative to project root)" }
     },
     required: ["path"]
   },
   handler: async (args) => {
     const filePath = args.path.startsWith("/") ? args.path : path.join(PROJECT_DIR, args.path);
-    console.log(`[Tool] Reading: ${filePath}`);
+    sendLog(`[Tool:readFile] Reading file: ${args.path}`);
+    sendToolEvent("readFile", { path: args.path }, "running");
     try {
       const content = await fs.readFile(filePath, "utf-8");
+      const lines = content.split('\n').length;
+      const bytes = content.length;
+      sendLog(`[Tool:readFile] Success: ${args.path} (${lines} lines, ${bytes} bytes)`);
+      sendToolEvent("readFile", { path: args.path, lines, bytes }, "success");
       return { success: true, content, path: filePath };
     } catch (err) {
+      sendLog(`[Tool:readFile] Error: ${err.message}`);
+      sendToolEvent("readFile", { path: args.path, error: err.message }, "error");
       return { success: false, error: err.message };
     }
   }
 });
 
 const writeFileTool = defineTool("writeFile", {
-  description: "Write content to a file in the project. Always write the complete file content.",
+  description: "Write content to a file in the project. Always write the complete file content. The file will be created if it doesn't exist.",
   parameters: {
     type: "object",
     properties: {
-      path: { type: "string", description: "The file path to write" },
+      path: { type: "string", description: "The file path to write (relative to project root)" },
       content: { type: "string", description: "The complete file content to write" }
     },
     required: ["path", "content"]
   },
   handler: async (args) => {
     const filePath = args.path.startsWith("/") ? args.path : path.join(PROJECT_DIR, args.path);
-    console.log(`[Tool] Writing: ${filePath}`);
+    const lines = args.content.split('\n').length;
+    const bytes = args.content.length;
+    sendLog(`[Tool:writeFile] Writing file: ${args.path} (${lines} lines, ${bytes} bytes)`);
+    sendToolEvent("writeFile", { path: args.path }, "running");
     try {
+      // Ensure directory exists
+      const dir = path.dirname(filePath);
+      await fs.mkdir(dir, { recursive: true });
+
       await fs.writeFile(filePath, args.content, "utf-8");
-      // Notify client about the file change
-      if (currentRes) {
-        currentRes.write(`data: ${JSON.stringify({ type: "tool", name: "writeFile", args: { path: filePath }, result: { success: true } })}\n\n`);
-      }
-      return { success: true, message: `File written: ${filePath}` };
+      sendLog(`[Tool:writeFile] Success: ${args.path} written to disk`);
+      sendToolEvent("writeFile", { path: args.path, bytesWritten: bytes, lines }, "success");
+      return { success: true, message: `File written: ${filePath}`, path: filePath };
     } catch (err) {
+      sendLog(`[Tool:writeFile] Error: ${err.message}`);
+      sendToolEvent("writeFile", { path: args.path, error: err.message }, "error");
       return { success: false, error: err.message };
     }
   }
 });
 
 const listFilesTool = defineTool("listFiles", {
-  description: "List files in a directory",
+  description: "List files and directories in a given path. Use this to explore the project structure.",
   parameters: {
     type: "object",
     properties: {
-      directory: { type: "string", description: "The directory path to list" }
+      directory: { type: "string", description: "The directory path to list (use '.' for project root)" }
     },
     required: ["directory"]
   },
   handler: async (args) => {
-    const dir = args.directory.startsWith("/") ? args.directory : path.join(PROJECT_DIR, args.directory);
-    console.log(`[Tool] Listing: ${dir}`);
+    const dir = args.directory === "." ? PROJECT_DIR :
+                args.directory.startsWith("/") ? args.directory : path.join(PROJECT_DIR, args.directory);
+    sendLog(`[Tool:listFiles] Listing directory: ${args.directory}`);
+    sendToolEvent("listFiles", { directory: args.directory }, "running");
     try {
       const entries = await fs.readdir(dir, { withFileTypes: true });
       const files = entries
         .filter(e => !e.name.startsWith('.') && e.name !== 'node_modules')
         .map(e => ({ name: e.name, isDirectory: e.isDirectory() }));
+      const dirs = files.filter(f => f.isDirectory).length;
+      const regularFiles = files.length - dirs;
+      sendLog(`[Tool:listFiles] Found ${regularFiles} files, ${dirs} directories in ${args.directory}`);
+      sendToolEvent("listFiles", { directory: args.directory, count: files.length, files: regularFiles, dirs }, "success");
       return { success: true, files, directory: dir };
     } catch (err) {
+      sendLog(`[Tool:listFiles] Error: ${err.message}`);
+      sendToolEvent("listFiles", { directory: args.directory, error: err.message }, "error");
       return { success: false, error: err.message };
     }
   }
@@ -252,20 +274,35 @@ async function getOrCreateSession(mode = "ask") {
 
   const systemPrompts = {
     ask: "You are GitHub Copilot inside Visual Studio 2026. Answer concisely about coding topics. When showing code, use markdown fenced code blocks with the language specified.",
-    agent: `You are GitHub Copilot Agent inside Visual Studio 2026. You have tools to read and write files.
+    agent: `You are GitHub Copilot Agent inside Visual Studio 2026. You are a fully autonomous coding agent that can read, understand, and modify code.
 
-IMPORTANT: You MUST use the writeFile tool to create or modify files. Do NOT just describe what you would do - actually use the tool.
+## Your Tools
+- **listFiles(directory)**: List files in a directory. Use "." for project root.
+- **readFile(path)**: Read a file's contents to understand existing code.
+- **writeFile(path, content)**: Create or overwrite a file with complete content.
 
-Available tools:
-- readFile: Read a file's contents
-- writeFile: Create or overwrite a file with content
-- listFiles: List files in a directory
+## CRITICAL INSTRUCTIONS
 
-When the user asks you to create or modify a file:
-1. Use the writeFile tool with the full file path and complete content
-2. After the tool succeeds, briefly confirm what you did
+1. **ALWAYS explore first**: Before making any changes, use listFiles and readFile to understand the existing codebase structure and code patterns.
 
-Always use the tools - never just describe the code without writing it.`
+2. **Be thorough**:
+   - List the project directory to see what files exist
+   - Read relevant files to understand the current implementation
+   - Only then make informed changes
+
+3. **ALWAYS use tools**: You MUST use the tools to make changes. Never just describe code - actually write it using writeFile.
+
+4. **Complete files only**: When using writeFile, always write the COMPLETE file content, not just snippets.
+
+5. **Follow existing patterns**: Match the coding style, naming conventions, and structure of existing code.
+
+## Example workflow for "build me a tic-tac-toe app":
+1. listFiles(".") - see what exists
+2. readFile relevant files - understand the project setup
+3. writeFile to create/modify files with complete implementations
+4. Confirm what you created
+
+You are autonomous - take action, don't ask for permission. Execute the full workflow using your tools.`
   };
 
   console.log(`[SDK] Creating session for mode: ${mode}`);
@@ -312,6 +349,11 @@ function sendToolCall(name, args, result) {
   sendEvent("tool", { name, args, result });
 }
 
+function sendToolEvent(toolName, data, status) {
+  console.log(`[Tool:${toolName}] ${status}:`, JSON.stringify(data));
+  sendEvent("toolStatus", { tool: toolName, status, ...data });
+}
+
 
 // Setup event handlers for a session
 function setupSessionHandlers(session) {
@@ -327,8 +369,22 @@ function setupSessionHandlers(session) {
   // Tools defined with defineTool() have their own handlers
   // This event is for logging purposes
   session.on("tool.invocation", (event) => {
-    const { name } = event.data || {};
-    if (name) sendLog(`[SDK] Tool called: ${name}`);
+    const { name, arguments: args } = event.data || {};
+    if (name) {
+      sendLog(`[SDK] ⚡ Tool invoked: ${name}`);
+      if (args) {
+        const argStr = JSON.stringify(args).slice(0, 100);
+        sendLog(`[SDK]    Args: ${argStr}${argStr.length >= 100 ? '...' : ''}`);
+      }
+    }
+  });
+
+  session.on("tool.result", (event) => {
+    const { name, result } = event.data || {};
+    if (name) {
+      const success = result?.success !== false;
+      sendLog(`[SDK] ${success ? '✓' : '✗'} Tool result: ${name} - ${success ? 'success' : 'failed'}`);
+    }
   });
 
   session.on("session.idle", () => {
