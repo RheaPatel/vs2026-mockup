@@ -1574,7 +1574,8 @@ src/
     const isGitHubPages = isStaticMode;
 
     if (isGitHubPages) {
-      // GitHub Pages: Show Device Flow sign-in button
+      // GitHub Pages: Show Personal Access Token entry
+      // Note: Device Flow doesn't work from browser due to CORS restrictions
       overlay.innerHTML = `
         <div class="auth-modal">
           <div class="auth-icon">
@@ -1583,17 +1584,26 @@ src/
             </svg>
           </div>
           <h2>Sign in with GitHub</h2>
-          <p>Connect your GitHub account to use Copilot chat features.</p>
+          <p>Enter a GitHub Personal Access Token with Copilot permissions to use chat features.</p>
+          <div class="auth-token-form">
+            <input type="password" id="patInput" class="pat-input" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" autocomplete="off" />
+            <a href="https://github.com/settings/tokens/new?description=VS2026%20Mockup&scopes=read:user,copilot" target="_blank" class="pat-create-link">
+              <svg width="12" height="12" viewBox="0 0 16 16" style="margin-right: 4px; vertical-align: middle;">
+                <path fill="currentColor" d="M9 2H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V5L9 2zm0 1.5V5h1.5L9 3.5zM5 13V3h3v3h3v7H5z"/>
+              </svg>
+              Create a token on GitHub
+            </a>
+          </div>
           <div class="auth-actions">
-            <button class="auth-btn primary" id="startAuthBtn">
+            <button class="auth-btn primary" id="submitTokenBtn">
               <svg width="16" height="16" viewBox="0 0 16 16" style="margin-right: 8px; vertical-align: middle;">
                 <path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
               </svg>
-              Sign in with GitHub
+              Sign In
             </button>
             <button class="auth-btn secondary" id="skipAuthBtn">Continue Without Auth</button>
           </div>
-          <p class="auth-note">The IDE will work for file browsing, but chat features require authentication.</p>
+          <p class="auth-note">Your token is stored locally and never sent to any server except GitHub's API.</p>
         </div>
       `;
     } else {
@@ -1623,11 +1633,18 @@ src/
     document.body.appendChild(overlay);
 
     // Attach event listeners
-    const startAuthBtn = document.getElementById('startAuthBtn');
+    const submitTokenBtn = document.getElementById('submitTokenBtn');
     const skipAuthBtn = document.getElementById('skipAuthBtn');
+    const patInput = document.getElementById('patInput');
 
-    if (startAuthBtn) {
-      startAuthBtn.addEventListener('click', handleDeviceFlowAuth);
+    if (submitTokenBtn && patInput) {
+      const handleSubmit = () => handleTokenAuth(patInput.value.trim());
+      submitTokenBtn.addEventListener('click', handleSubmit);
+      patInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') handleSubmit();
+      });
+      // Focus the input
+      setTimeout(() => patInput.focus(), 100);
     }
 
     if (skipAuthBtn) {
@@ -1638,7 +1655,12 @@ src/
     }
   }
 
-  async function handleDeviceFlowAuth() {
+  async function handleTokenAuth(token) {
+    if (!token) {
+      alert('Please enter a GitHub Personal Access Token');
+      return;
+    }
+
     const overlay = document.getElementById('authOverlay');
     if (!overlay) return;
 
@@ -1649,80 +1671,16 @@ src/
       <div class="auth-icon">
         <div class="auth-spinner"></div>
       </div>
-      <h2>Connecting to GitHub...</h2>
-      <p>Please wait while we initiate the sign-in process.</p>
+      <h2>Verifying token...</h2>
+      <p>Please wait while we verify your GitHub token.</p>
     `;
 
     try {
-      const deviceInfo = await startDeviceFlow();
+      // Verify the token by fetching user info
+      const userInfo = await fetchGitHubUser(token);
 
-      // Show the device code
-      modal.innerHTML = `
-        <div class="auth-icon">
-          <svg width="64" height="64" viewBox="0 0 16 16">
-            <path fill="#2ea043" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
-          </svg>
-        </div>
-        <h2>Enter the code on GitHub</h2>
-        <p>Go to <a href="${deviceInfo.verificationUri}" target="_blank" class="verification-link">${deviceInfo.verificationUri}</a> and enter this code:</p>
-        <div class="device-code">${deviceInfo.userCode}</div>
-        <div class="auth-polling">
-          <div class="auth-spinner-small"></div>
-          <span>Waiting for authorization...</span>
-        </div>
-        <div class="auth-actions">
-          <button class="auth-btn secondary" id="cancelAuthBtn">Cancel</button>
-        </div>
-        <p class="auth-note">This code expires in ${Math.floor(deviceInfo.expiresIn / 60)} minutes.</p>
-      `;
-
-      // Add cancel button handler
-      document.getElementById('cancelAuthBtn')?.addEventListener('click', () => {
-        overlay.remove();
-        appendLog('[Auth] Authentication cancelled');
-      });
-
-      // Copy code to clipboard
-      const codeEl = modal.querySelector('.device-code');
-      codeEl.addEventListener('click', async () => {
-        try {
-          await navigator.clipboard.writeText(deviceInfo.userCode);
-          codeEl.classList.add('copied');
-          setTimeout(() => codeEl.classList.remove('copied'), 2000);
-        } catch (e) {
-          console.error('Failed to copy:', e);
-        }
-      });
-
-      // Start polling for token
-      const expiresAt = Date.now() + (deviceInfo.expiresIn * 1000);
-      const result = await pollForToken(deviceInfo.deviceCode, deviceInfo.interval, expiresAt);
-
-      if (result.success) {
-        // Success! Show success message and close
-        modal.innerHTML = `
-          <div class="auth-icon">
-            <svg width="64" height="64" viewBox="0 0 16 16">
-              <circle cx="8" cy="8" r="7" fill="none" stroke="#2ea043" stroke-width="1.5"/>
-              <path fill="#2ea043" d="M6.5 10.5L4 8l1-1 1.5 1.5L10 5l1 1-4.5 4.5z"/>
-            </svg>
-          </div>
-          <h2>Successfully signed in!</h2>
-          <p>Welcome, ${result.user || 'user'}! You can now use Copilot features.</p>
-          <div class="auth-actions">
-            <button class="auth-btn primary" id="closeAuthBtn">Get Started</button>
-          </div>
-        `;
-
-        document.getElementById('closeAuthBtn')?.addEventListener('click', () => {
-          overlay.remove();
-        });
-
-        appendLog(`[Auth] Signed in as: ${result.user || 'authenticated'}`);
-        appendLog('[Auth] GitHub Copilot ready');
-        updateUserAvatar(); // Update avatar to show authenticated state
-      } else {
-        // Error
+      if (!userInfo) {
+        // Invalid token
         modal.innerHTML = `
           <div class="auth-icon">
             <svg width="64" height="64" viewBox="0 0 16 16">
@@ -1730,8 +1688,8 @@ src/
               <path fill="#f44" d="M8 4v5M8 10.5v1"/>
             </svg>
           </div>
-          <h2>Authentication Failed</h2>
-          <p>${result.error}</p>
+          <h2>Invalid Token</h2>
+          <p>The token could not be verified. Please check that it's correct and has the required permissions.</p>
           <div class="auth-actions">
             <button class="auth-btn primary" id="retryAuthBtn">Try Again</button>
             <button class="auth-btn secondary" id="closeErrorBtn">Close</button>
@@ -1746,8 +1704,35 @@ src/
           overlay.remove();
         });
 
-        appendLog(`[Auth] Authentication failed: ${result.error}`);
+        appendLog('[Auth] Invalid token provided');
+        return;
       }
+
+      // Success! Store token and show success message
+      storeAuthToken(token, userInfo.login);
+
+      modal.innerHTML = `
+        <div class="auth-icon">
+          <svg width="64" height="64" viewBox="0 0 16 16">
+            <circle cx="8" cy="8" r="7" fill="none" stroke="#2ea043" stroke-width="1.5"/>
+            <path fill="#2ea043" d="M6.5 10.5L4 8l1-1 1.5 1.5L10 5l1 1-4.5 4.5z"/>
+          </svg>
+        </div>
+        <h2>Successfully signed in!</h2>
+        <p>Welcome, ${userInfo.login}! You can now use Copilot features.</p>
+        <div class="auth-actions">
+          <button class="auth-btn primary" id="closeAuthBtn">Get Started</button>
+        </div>
+      `;
+
+      document.getElementById('closeAuthBtn')?.addEventListener('click', () => {
+        overlay.remove();
+      });
+
+      appendLog(`[Auth] Signed in as: ${userInfo.login}`);
+      appendLog('[Auth] GitHub Copilot ready');
+      updateUserAvatar();
+
     } catch (err) {
       // Show error
       modal.innerHTML = `
@@ -1758,7 +1743,7 @@ src/
           </svg>
         </div>
         <h2>Connection Error</h2>
-        <p>Failed to connect to GitHub. Please check your internet connection and try again.</p>
+        <p>Failed to verify token. Please check your internet connection and try again.</p>
         <div class="auth-actions">
           <button class="auth-btn primary" id="retryAuthBtn">Try Again</button>
           <button class="auth-btn secondary" id="closeErrorBtn">Close</button>
