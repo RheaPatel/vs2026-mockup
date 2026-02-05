@@ -4,6 +4,341 @@
 
 document.addEventListener('DOMContentLoaded', async () => {
 
+  // --- GitHub OAuth Device Flow Configuration ---
+  const GITHUB_OAUTH = {
+    // GitHub's official Copilot OAuth App Client ID (public)
+    clientId: 'Iv1.b507a08c87ecfe98',
+    deviceCodeUrl: 'https://github.com/login/device/code',
+    tokenUrl: 'https://github.com/login/oauth/access_token',
+    copilotApiUrl: 'https://api.githubcopilot.com/chat/completions',
+    scope: 'read:user copilot'
+  };
+
+  // --- Auth Token Storage ---
+  const AUTH_STORAGE_KEY = 'vs2026-github-token';
+  let githubAccessToken = null;
+  let githubUser = null;
+
+  function storeAuthToken(token, user = null) {
+    const data = { token, user, storedAt: Date.now() };
+    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(data));
+    githubAccessToken = token;
+    githubUser = user;
+  }
+
+  function getStoredAuth() {
+    try {
+      const saved = localStorage.getItem(AUTH_STORAGE_KEY);
+      if (saved) {
+        const data = JSON.parse(saved);
+        githubAccessToken = data.token;
+        githubUser = data.user;
+        return data;
+      }
+    } catch (e) {
+      console.error('Failed to load stored auth:', e);
+    }
+    return null;
+  }
+
+  function clearStoredAuth() {
+    localStorage.removeItem(AUTH_STORAGE_KEY);
+    githubAccessToken = null;
+    githubUser = null;
+  }
+
+  function isAuthenticated() {
+    return !!githubAccessToken;
+  }
+
+  function logout() {
+    clearStoredAuth();
+    appendLog('[Auth] Signed out');
+    updateUserAvatar();
+    showAuthPrompt();
+  }
+
+  function updateUserAvatar() {
+    const avatarEl = document.querySelector('.user-avatar-circle');
+    if (!avatarEl) return;
+
+    if (isAuthenticated() && githubUser) {
+      // Show user initial and add dropdown menu
+      avatarEl.innerHTML = `
+        <span class="user-initial">${githubUser.charAt(0).toUpperCase()}</span>
+      `;
+      avatarEl.classList.add('authenticated');
+      avatarEl.title = `Signed in as ${githubUser}`;
+
+      // Add click handler for logout menu
+      avatarEl.onclick = (e) => {
+        e.stopPropagation();
+        toggleUserMenu();
+      };
+    } else {
+      // Show default icon
+      avatarEl.innerHTML = `
+        <svg width="18" height="18" viewBox="0 0 16 16"><circle cx="8" cy="5" r="3" fill="#aaa"/><path fill="#aaa" d="M2 14c0-3 2.5-5 6-5s6 2 6 5H2z"/></svg>
+      `;
+      avatarEl.classList.remove('authenticated');
+      avatarEl.title = 'Not signed in';
+      avatarEl.onclick = () => showAuthPrompt();
+    }
+  }
+
+  function toggleUserMenu() {
+    // Remove existing menu
+    document.querySelector('.user-menu')?.remove();
+
+    const avatarEl = document.querySelector('.user-avatar-circle');
+    if (!avatarEl) return;
+
+    const menu = document.createElement('div');
+    menu.className = 'user-menu';
+    menu.innerHTML = `
+      <div class="user-menu-header">
+        <svg width="20" height="20" viewBox="0 0 16 16">
+          <path fill="#fff" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+        </svg>
+        <span>${githubUser || 'User'}</span>
+      </div>
+      <div class="user-menu-item" id="logoutBtn">
+        <svg width="14" height="14" viewBox="0 0 16 16">
+          <path fill="currentColor" d="M2 2.5A2.5 2.5 0 0 1 4.5 0h7A2.5 2.5 0 0 1 14 2.5v11a2.5 2.5 0 0 1-2.5 2.5h-7A2.5 2.5 0 0 1 2 13.5v-3h1v3A1.5 1.5 0 0 0 4.5 15h7a1.5 1.5 0 0 0 1.5-1.5v-11A1.5 1.5 0 0 0 11.5 1h-7A1.5 1.5 0 0 0 3 2.5v3H2v-3z"/>
+          <path fill="currentColor" d="M5.854 4.646a.5.5 0 0 1 0 .708L3.207 8l2.647 2.646a.5.5 0 0 1-.708.708l-3-3a.5.5 0 0 1 0-.708l3-3a.5.5 0 0 1 .708 0z"/>
+          <path fill="currentColor" d="M.5 8a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1H1a.5.5 0 0 1-.5-.5z"/>
+        </svg>
+        Sign out
+      </div>
+    `;
+
+    // Position menu below avatar
+    const rect = avatarEl.getBoundingClientRect();
+    menu.style.top = (rect.bottom + 4) + 'px';
+    menu.style.right = (window.innerWidth - rect.right) + 'px';
+
+    document.body.appendChild(menu);
+
+    document.getElementById('logoutBtn')?.addEventListener('click', () => {
+      menu.remove();
+      logout();
+    });
+
+    // Close menu on click outside
+    setTimeout(() => {
+      document.addEventListener('click', function closeMenu(e) {
+        if (!menu.contains(e.target)) {
+          menu.remove();
+          document.removeEventListener('click', closeMenu);
+        }
+      });
+    }, 0);
+  }
+
+  // Load any stored auth on startup
+  getStoredAuth();
+
+  // --- GitHub Device Flow Authentication ---
+  async function startDeviceFlow() {
+    try {
+      // Step 1: Request device code
+      const codeResponse = await fetch('https://github.com/login/device/code', {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          client_id: GITHUB_OAUTH.clientId,
+          scope: GITHUB_OAUTH.scope
+        })
+      });
+
+      if (!codeResponse.ok) {
+        throw new Error('Failed to initiate device flow');
+      }
+
+      const codeData = await codeResponse.json();
+
+      // Return the device code info for UI display
+      return {
+        deviceCode: codeData.device_code,
+        userCode: codeData.user_code,
+        verificationUri: codeData.verification_uri,
+        expiresIn: codeData.expires_in,
+        interval: codeData.interval || 5
+      };
+    } catch (err) {
+      console.error('Device flow error:', err);
+      throw err;
+    }
+  }
+
+  async function pollForToken(deviceCode, interval, expiresAt) {
+    const pollInterval = Math.max(interval, 5) * 1000; // Minimum 5 seconds as per GitHub spec
+
+    while (Date.now() < expiresAt) {
+      await new Promise(resolve => setTimeout(resolve, pollInterval));
+
+      try {
+        const tokenResponse = await fetch('https://github.com/login/oauth/access_token', {
+          method: 'POST',
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            client_id: GITHUB_OAUTH.clientId,
+            device_code: deviceCode,
+            grant_type: 'urn:ietf:params:oauth:grant-type:device_code'
+          })
+        });
+
+        const tokenData = await tokenResponse.json();
+
+        if (tokenData.access_token) {
+          // Success! Get user info and store token
+          const userInfo = await fetchGitHubUser(tokenData.access_token);
+          storeAuthToken(tokenData.access_token, userInfo?.login);
+          return { success: true, token: tokenData.access_token, user: userInfo?.login };
+        }
+
+        if (tokenData.error === 'authorization_pending') {
+          // User hasn't completed auth yet, continue polling
+          continue;
+        }
+
+        if (tokenData.error === 'slow_down') {
+          // Increase polling interval
+          await new Promise(resolve => setTimeout(resolve, 5000));
+          continue;
+        }
+
+        if (tokenData.error === 'expired_token') {
+          return { success: false, error: 'Code expired. Please try again.' };
+        }
+
+        if (tokenData.error === 'access_denied') {
+          return { success: false, error: 'Access denied by user.' };
+        }
+
+        // Unknown error
+        return { success: false, error: tokenData.error_description || tokenData.error || 'Unknown error' };
+      } catch (err) {
+        console.error('Polling error:', err);
+        // Continue polling on network errors
+      }
+    }
+
+    return { success: false, error: 'Authentication timed out. Please try again.' };
+  }
+
+  async function fetchGitHubUser(token) {
+    try {
+      const response = await fetch('https://api.github.com/user', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/vnd.github.v3+json'
+        }
+      });
+      if (response.ok) {
+        return await response.json();
+      }
+    } catch (err) {
+      console.error('Failed to fetch user info:', err);
+    }
+    return null;
+  }
+
+  // --- GitHub Copilot API Integration ---
+  async function* streamCopilotAPI(messages, mode) {
+    if (!githubAccessToken) {
+      throw new Error('Not authenticated. Please sign in with GitHub.');
+    }
+
+    // Build the system message based on mode
+    const systemMessage = mode === 'agent'
+      ? 'You are a helpful AI coding assistant integrated into Visual Studio 2026. You can help users with code, explain concepts, and provide suggestions. When asked to create or modify files, describe what changes you would make.'
+      : 'You are a helpful AI coding assistant. Answer concisely about coding topics. Provide code examples when helpful.';
+
+    const apiMessages = [
+      { role: 'system', content: systemMessage },
+      ...messages
+    ];
+
+    try {
+      const response = await fetch('https://api.githubcopilot.com/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${githubAccessToken}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Editor-Version': 'vscode/1.85.0',
+          'Editor-Plugin-Version': 'copilot-chat/0.12.0',
+          'Openai-Organization': 'github-copilot',
+          'Copilot-Integration-Id': 'vscode-chat'
+        },
+        body: JSON.stringify({
+          model: 'gpt-4',
+          messages: apiMessages,
+          stream: true,
+          temperature: 0.7,
+          max_tokens: 4096
+        })
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          // Token expired or invalid
+          clearStoredAuth();
+          throw new Error('Session expired. Please sign in again.');
+        }
+        if (response.status === 403) {
+          throw new Error('GitHub Copilot access denied. Please ensure you have an active Copilot subscription.');
+        }
+        const errorText = await response.text();
+        throw new Error(`Copilot API error: ${response.status} - ${errorText}`);
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const payload = line.slice(6).trim();
+
+          if (payload === '[DONE]') {
+            return;
+          }
+
+          try {
+            const data = JSON.parse(payload);
+            const content = data.choices?.[0]?.delta?.content;
+            if (content) {
+              yield { type: 'text', content };
+            }
+          } catch (e) {
+            // Skip malformed JSON chunks
+          }
+        }
+      }
+    } catch (err) {
+      if (err.name === 'TypeError' && err.message.includes('fetch')) {
+        throw new Error('Network error. Please check your internet connection.');
+      }
+      throw err;
+    }
+  }
+
   // --- Monaco Editor Setup ---
   let editor = null;
   let currentFilePath = null;
@@ -919,6 +1254,41 @@ src/
 
   // Stream response from API with tool call handling
   async function streamFromAPI(messages, mode, textEl, onFirstToken) {
+    // In static mode, use GitHub Copilot API directly
+    if (isStaticMode) {
+      if (!isAuthenticated()) {
+        throw new Error('Please sign in with GitHub to use chat features.');
+      }
+
+      let fullText = '';
+      let firstToken = true;
+
+      try {
+        appendLog('[Copilot] Sending request...');
+        for await (const event of streamCopilotAPI(messages, mode)) {
+          if (event.type === 'text') {
+            if (firstToken) {
+              firstToken = false;
+              if (onFirstToken) onFirstToken();
+            }
+            fullText += event.content;
+            textEl.innerHTML = renderMarkdown(fullText);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+          }
+        }
+        appendLog('[Copilot] Response complete');
+      } catch (err) {
+        // If auth error, prompt for re-authentication
+        if (err.message.includes('Session expired') || err.message.includes('sign in')) {
+          showAuthPrompt();
+        }
+        throw err;
+      }
+
+      return fullText;
+    }
+
+    // Server mode: use the local API
     const res = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1110,10 +1480,19 @@ src/
   // --- Auth Status Check ---
   async function checkAuthStatus() {
     if (isStaticMode) {
-      // In static mode, skip auth check
-      appendLog('[Auth] Static demo mode - chat features simulated');
-      return false;
+      // In static mode, check for stored GitHub OAuth token
+      if (isAuthenticated()) {
+        appendLog(`[Auth] Signed in as: ${githubUser || 'authenticated'}`);
+        appendLog('[Auth] GitHub Copilot ready');
+        return true;
+      } else {
+        appendLog('[Auth] Static mode - Sign in with GitHub to use chat features');
+        showAuthPrompt();
+        return false;
+      }
     }
+
+    // Server mode: check local server auth
     try {
       const res = await fetch('/api/auth/status');
       const contentType = res.headers.get('content-type') || '';
@@ -1140,35 +1519,225 @@ src/
     }
   }
 
-  function showAuthPrompt(status) {
+  function showAuthPrompt(options = {}) {
+    // Remove any existing overlay
+    document.querySelector('.auth-overlay')?.remove();
+
     const overlay = document.createElement('div');
     overlay.className = 'auth-overlay';
-    overlay.innerHTML = `
-      <div class="auth-modal">
+    overlay.id = 'authOverlay';
+
+    // Determine if this is static mode (GitHub Pages) or server mode
+    const isGitHubPages = isStaticMode;
+
+    if (isGitHubPages) {
+      // GitHub Pages: Show Device Flow sign-in button
+      overlay.innerHTML = `
+        <div class="auth-modal">
+          <div class="auth-icon">
+            <svg width="64" height="64" viewBox="0 0 16 16">
+              <path fill="#fff" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+            </svg>
+          </div>
+          <h2>Sign in with GitHub</h2>
+          <p>Connect your GitHub account to use Copilot chat features.</p>
+          <div class="auth-actions">
+            <button class="auth-btn primary" id="startAuthBtn">
+              <svg width="16" height="16" viewBox="0 0 16 16" style="margin-right: 8px; vertical-align: middle;">
+                <path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+              </svg>
+              Sign in with GitHub
+            </button>
+            <button class="auth-btn secondary" id="skipAuthBtn">Continue Without Auth</button>
+          </div>
+          <p class="auth-note">The IDE will work for file browsing, but chat features require authentication.</p>
+        </div>
+      `;
+    } else {
+      // Server mode: Show CLI instructions
+      overlay.innerHTML = `
+        <div class="auth-modal">
+          <div class="auth-icon">
+            <svg width="64" height="64" viewBox="0 0 16 16">
+              <circle cx="8" cy="8" r="7" fill="none" stroke="#f0883e" stroke-width="1.5"/>
+              <path fill="#f0883e" d="M8 4v5M8 10.5v1"/>
+            </svg>
+          </div>
+          <h2>GitHub Authentication Required</h2>
+          <p>To use Copilot features, please authenticate with GitHub CLI.</p>
+          <div class="auth-steps">
+            ${options.instructions ? options.instructions.map(step => `<div class="auth-step">${step}</div>`).join('') : ''}
+          </div>
+          <div class="auth-actions">
+            <button class="auth-btn primary" onclick="location.reload()">Refresh</button>
+            <button class="auth-btn secondary" id="skipAuthBtn">Continue Without Auth</button>
+          </div>
+          <p class="auth-note">The IDE will work for file browsing, but chat features require authentication.</p>
+        </div>
+      `;
+    }
+
+    document.body.appendChild(overlay);
+
+    // Attach event listeners
+    const startAuthBtn = document.getElementById('startAuthBtn');
+    const skipAuthBtn = document.getElementById('skipAuthBtn');
+
+    if (startAuthBtn) {
+      startAuthBtn.addEventListener('click', handleDeviceFlowAuth);
+    }
+
+    if (skipAuthBtn) {
+      skipAuthBtn.addEventListener('click', () => {
+        overlay.remove();
+        appendLog('[Auth] Continuing without authentication');
+      });
+    }
+  }
+
+  async function handleDeviceFlowAuth() {
+    const overlay = document.getElementById('authOverlay');
+    if (!overlay) return;
+
+    const modal = overlay.querySelector('.auth-modal');
+
+    // Show loading state
+    modal.innerHTML = `
+      <div class="auth-icon">
+        <div class="auth-spinner"></div>
+      </div>
+      <h2>Connecting to GitHub...</h2>
+      <p>Please wait while we initiate the sign-in process.</p>
+    `;
+
+    try {
+      const deviceInfo = await startDeviceFlow();
+
+      // Show the device code
+      modal.innerHTML = `
         <div class="auth-icon">
           <svg width="64" height="64" viewBox="0 0 16 16">
-            <circle cx="8" cy="8" r="7" fill="none" stroke="#f0883e" stroke-width="1.5"/>
-            <path fill="#f0883e" d="M8 4v5M8 10.5v1"/>
+            <path fill="#2ea043" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
           </svg>
         </div>
-        <h2>GitHub Authentication Required</h2>
-        <p>To use Copilot features, please authenticate with GitHub CLI.</p>
-        <div class="auth-steps">
-          ${status.instructions ? status.instructions.map(step => `<div class="auth-step">${step}</div>`).join('') : ''}
+        <h2>Enter the code on GitHub</h2>
+        <p>Go to <a href="${deviceInfo.verificationUri}" target="_blank" class="verification-link">${deviceInfo.verificationUri}</a> and enter this code:</p>
+        <div class="device-code">${deviceInfo.userCode}</div>
+        <div class="auth-polling">
+          <div class="auth-spinner-small"></div>
+          <span>Waiting for authorization...</span>
         </div>
         <div class="auth-actions">
-          <button class="auth-btn primary" onclick="location.reload()">Refresh</button>
-          <button class="auth-btn secondary" onclick="this.closest('.auth-overlay').remove()">Continue Without Auth</button>
+          <button class="auth-btn secondary" id="cancelAuthBtn">Cancel</button>
         </div>
-        <p class="auth-note">The IDE will work for file browsing, but chat features require authentication.</p>
-      </div>
-    `;
-    document.body.appendChild(overlay);
+        <p class="auth-note">This code expires in ${Math.floor(deviceInfo.expiresIn / 60)} minutes.</p>
+      `;
+
+      // Add cancel button handler
+      document.getElementById('cancelAuthBtn')?.addEventListener('click', () => {
+        overlay.remove();
+        appendLog('[Auth] Authentication cancelled');
+      });
+
+      // Copy code to clipboard
+      const codeEl = modal.querySelector('.device-code');
+      codeEl.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(deviceInfo.userCode);
+          codeEl.classList.add('copied');
+          setTimeout(() => codeEl.classList.remove('copied'), 2000);
+        } catch (e) {
+          console.error('Failed to copy:', e);
+        }
+      });
+
+      // Start polling for token
+      const expiresAt = Date.now() + (deviceInfo.expiresIn * 1000);
+      const result = await pollForToken(deviceInfo.deviceCode, deviceInfo.interval, expiresAt);
+
+      if (result.success) {
+        // Success! Show success message and close
+        modal.innerHTML = `
+          <div class="auth-icon">
+            <svg width="64" height="64" viewBox="0 0 16 16">
+              <circle cx="8" cy="8" r="7" fill="none" stroke="#2ea043" stroke-width="1.5"/>
+              <path fill="#2ea043" d="M6.5 10.5L4 8l1-1 1.5 1.5L10 5l1 1-4.5 4.5z"/>
+            </svg>
+          </div>
+          <h2>Successfully signed in!</h2>
+          <p>Welcome, ${result.user || 'user'}! You can now use Copilot features.</p>
+          <div class="auth-actions">
+            <button class="auth-btn primary" id="closeAuthBtn">Get Started</button>
+          </div>
+        `;
+
+        document.getElementById('closeAuthBtn')?.addEventListener('click', () => {
+          overlay.remove();
+        });
+
+        appendLog(`[Auth] Signed in as: ${result.user || 'authenticated'}`);
+        appendLog('[Auth] GitHub Copilot ready');
+        updateUserAvatar(); // Update avatar to show authenticated state
+      } else {
+        // Error
+        modal.innerHTML = `
+          <div class="auth-icon">
+            <svg width="64" height="64" viewBox="0 0 16 16">
+              <circle cx="8" cy="8" r="7" fill="none" stroke="#f44" stroke-width="1.5"/>
+              <path fill="#f44" d="M8 4v5M8 10.5v1"/>
+            </svg>
+          </div>
+          <h2>Authentication Failed</h2>
+          <p>${result.error}</p>
+          <div class="auth-actions">
+            <button class="auth-btn primary" id="retryAuthBtn">Try Again</button>
+            <button class="auth-btn secondary" id="closeErrorBtn">Close</button>
+          </div>
+        `;
+
+        document.getElementById('retryAuthBtn')?.addEventListener('click', () => {
+          overlay.remove();
+          showAuthPrompt();
+        });
+        document.getElementById('closeErrorBtn')?.addEventListener('click', () => {
+          overlay.remove();
+        });
+
+        appendLog(`[Auth] Authentication failed: ${result.error}`);
+      }
+    } catch (err) {
+      // Show error
+      modal.innerHTML = `
+        <div class="auth-icon">
+          <svg width="64" height="64" viewBox="0 0 16 16">
+            <circle cx="8" cy="8" r="7" fill="none" stroke="#f44" stroke-width="1.5"/>
+            <path fill="#f44" d="M8 4v5M8 10.5v1"/>
+          </svg>
+        </div>
+        <h2>Connection Error</h2>
+        <p>Failed to connect to GitHub. Please check your internet connection and try again.</p>
+        <div class="auth-actions">
+          <button class="auth-btn primary" id="retryAuthBtn">Try Again</button>
+          <button class="auth-btn secondary" id="closeErrorBtn">Close</button>
+        </div>
+      `;
+
+      document.getElementById('retryAuthBtn')?.addEventListener('click', () => {
+        overlay.remove();
+        showAuthPrompt();
+      });
+      document.getElementById('closeErrorBtn')?.addEventListener('click', () => {
+        overlay.remove();
+      });
+
+      appendLog(`[Auth] Error: ${err.message}`);
+    }
   }
 
   // --- Initialize ---
   await initMonaco();
   await loadFileTree();
+  updateUserAvatar(); // Update avatar based on auth state
   await checkAuthStatus();
   appendLog('[IDE] Ready - Monaco Editor loaded');
   appendLog('[IDE] Select "Agent" mode to let Copilot edit files');
