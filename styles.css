@@ -668,6 +668,19 @@ body {
 }
 @keyframes blink { 50% { opacity: 0; } }
 
+/* Tool indicators in chat */
+.tool-indicator {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px; margin: 6px 0;
+  background: var(--bg-medium); border-left: 3px solid var(--accent);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  font-size: 12px; color: var(--text-dim);
+  animation: fadeIn 0.2s ease-out;
+}
+.tool-indicator .tool-icon { font-size: 14px; }
+.tool-indicator.tool-success { border-left-color: var(--green); color: var(--green); }
+.tool-indicator.tool-error { border-left-color: var(--red); color: var(--red); }
+
 /* Thinking dots */
 .thinking-dots { display: flex; gap: 4px; padding: 8px 0; }
 .thinking-dots .dot {
