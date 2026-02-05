@@ -561,7 +561,11 @@ src/
   async function loadFileTree(dir = '') {
     try {
       const res = await fetch(`/api/files${dir ? `?dir=${encodeURIComponent(dir)}` : ''}`);
-      if (!res.ok) throw new Error('Server not available');
+      // Check if response is JSON (server running) or HTML (404 page)
+      const contentType = res.headers.get('content-type') || '';
+      if (!res.ok || !contentType.includes('application/json')) {
+        throw new Error('Server not available');
+      }
       const { files, root, error } = await res.json();
       if (error) throw new Error(error);
 
@@ -573,7 +577,7 @@ src/
     } catch (err) {
       // Fall back to static mock data
       isStaticMode = true;
-      appendLog('[IDE] Running in static mode (no server)');
+      appendLog('[IDE] Running in static demo mode');
       projectName.textContent = 'MyProject';
       fileTree.innerHTML = '';
       const topLevel = MOCK_FILE_TREE.filter(f => !f.path.includes('/'));
@@ -1105,8 +1109,17 @@ src/
 
   // --- Auth Status Check ---
   async function checkAuthStatus() {
+    if (isStaticMode) {
+      // In static mode, skip auth check
+      appendLog('[Auth] Static demo mode - chat features simulated');
+      return false;
+    }
     try {
       const res = await fetch('/api/auth/status');
+      const contentType = res.headers.get('content-type') || '';
+      if (!res.ok || !contentType.includes('application/json')) {
+        throw new Error('Server not available');
+      }
       const status = await res.json();
 
       if (!status.authenticated) {
@@ -1122,7 +1135,7 @@ src/
       }
       return true;
     } catch (err) {
-      appendLog('[Auth] Server not running - start with: npm start');
+      appendLog('[Auth] Running in demo mode');
       return false;
     }
   }
