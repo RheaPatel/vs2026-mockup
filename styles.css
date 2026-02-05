@@ -156,8 +156,9 @@ body {
 
 /* ============ FILE EXPLORER ============ */
 .file-explorer {
-  width: 220px; background: var(--bg-dark); border-right: 1px solid var(--border);
+  width: 240px; background: var(--bg-dark); border-right: 1px solid var(--border);
   display: flex; flex-direction: column; flex-shrink: 0; overflow: hidden;
+  min-width: 180px;
 }
 .explorer-header {
   display: flex; justify-content: space-between; align-items: center;
@@ -342,9 +343,10 @@ body {
 
 /* ============ CHAT PANEL ============ */
 .chat-panel {
-  width: 400px; background: var(--bg-darkest);
+  width: 340px; background: var(--bg-darkest);
   border-left: 1px solid var(--border);
   display: flex; flex-direction: column; flex-shrink: 0;
+  min-width: 280px;
 }
 .chat-panel.hidden { width: 0; overflow: hidden; border-left: none; }
 

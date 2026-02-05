@@ -58,6 +58,254 @@ document.addEventListener('DOMContentLoaded', async () => {
     return langMap[ext] || 'plaintext';
   }
 
+  // Mock file contents for static mode
+  const MOCK_FILE_CONTENTS = {
+    'src/App.tsx': `import React, { useState, useEffect } from 'react';
+import { Header } from './components/Header';
+import { Dashboard } from './components/Dashboard';
+import { fetchUserData } from './utils/api';
+import './styles.css';
+
+interface User {
+  id: number;
+  name: string;
+  email: string;
+  role: 'admin' | 'user' | 'guest';
+}
+
+export const App: React.FC = () => {
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [theme, setTheme] = useState<'light' | 'dark'>('dark');
+
+  useEffect(() => {
+    const loadUser = async () => {
+      try {
+        const data = await fetchUserData();
+        setUser(data);
+      } catch (error) {
+        console.error('Failed to load user:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadUser();
+  }, []);
+
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'light' ? 'dark' : 'light');
+  };
+
+  if (loading) {
+    return <div className="loading-spinner">Loading...</div>;
+  }
+
+  return (
+    <div className={\`app \${theme}\`}>
+      <Header user={user} onThemeToggle={toggleTheme} />
+      <main className="main-content">
+        <Dashboard user={user} />
+      </main>
+    </div>
+  );
+};
+
+export default App;`,
+
+    'src/index.tsx': `import React from 'react';
+import ReactDOM from 'react-dom/client';
+import App from './App';
+import './styles.css';
+
+const root = ReactDOM.createRoot(
+  document.getElementById('root') as HTMLElement
+);
+
+root.render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);`,
+
+    'src/styles.css': `/* Global Styles */
+:root {
+  --bg-primary: #1e1e1e;
+  --bg-secondary: #252526;
+  --text-primary: #cccccc;
+  --text-secondary: #999999;
+  --accent: #0078d4;
+  --border: #3f3f3f;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  min-height: 100vh;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.app.dark {
+  --bg-primary: #1e1e1e;
+  --text-primary: #ffffff;
+}
+
+.app.light {
+  --bg-primary: #ffffff;
+  --text-primary: #1e1e1e;
+}
+
+.loading-spinner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  font-size: 1.5rem;
+}
+
+.main-content {
+  flex: 1;
+  padding: 24px;
+}`,
+
+    'src/utils/helpers.ts': `// Utility helper functions
+
+export function formatDate(date: Date): string {
+  return new Intl.DateTimeFormat('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  }).format(date);
+}
+
+export function debounce<T extends (...args: any[]) => any>(
+  fn: T,
+  delay: number
+): (...args: Parameters<T>) => void {
+  let timeoutId: NodeJS.Timeout;
+  return (...args: Parameters<T>) => {
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => fn(...args), delay);
+  };
+}
+
+export function classNames(...classes: (string | boolean | undefined)[]): string {
+  return classes.filter(Boolean).join(' ');
+}
+
+export function generateId(): string {
+  return Math.random().toString(36).slice(2, 11);
+}`,
+
+    'src/utils/api.ts': `// API utility functions
+
+const API_BASE = '/api/v1';
+
+interface ApiResponse<T> {
+  data: T;
+  success: boolean;
+  error?: string;
+}
+
+export async function fetchUserData(): Promise<any> {
+  const response = await fetch(\`\${API_BASE}/user\`);
+  if (!response.ok) {
+    throw new Error('Failed to fetch user data');
+  }
+  return response.json();
+}
+
+export async function updateUserSettings(settings: Record<string, any>): Promise<void> {
+  const response = await fetch(\`\${API_BASE}/user/settings\`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(settings),
+  });
+  if (!response.ok) {
+    throw new Error('Failed to update settings');
+  }
+}`,
+
+    'package.json': `{
+  "name": "my-react-app",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "typescript": "^5.0.0"
+  },
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "lint": "eslint src/"
+  }
+}`,
+
+    'tsconfig.json': `{
+  "compilerOptions": {
+    "target": "ES2020",
+    "lib": ["DOM", "DOM.Iterable", "ES2020"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "noFallthroughCasesInSwitch": true,
+    "module": "ESNext",
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx"
+  },
+  "include": ["src"]
+}`,
+
+    'README.md': `# My React Application
+
+A modern React application with TypeScript support.
+
+## Features
+
+- React 18 with hooks
+- TypeScript for type safety
+- Dark/Light theme support
+- Modular component architecture
+
+## Getting Started
+
+\`\`\`bash
+npm install
+npm start
+\`\`\`
+
+## Project Structure
+
+\`\`\`
+src/
+  ├── components/    # Reusable UI components
+  ├── utils/         # Helper functions and API
+  ├── App.tsx        # Main application component
+  └── index.tsx      # Entry point
+\`\`\`
+`,
+  };
+
   // Open a file in the editor
   async function openFile(filePath) {
     const welcomeScreen = document.getElementById('welcomeScreen');
@@ -72,9 +320,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     try {
-      const res = await fetch(`/api/file?path=${encodeURIComponent(filePath)}`);
-      const { content, error } = await res.json();
-      if (error) throw new Error(error);
+      let content;
+      if (isStaticMode) {
+        // Use mock content
+        content = MOCK_FILE_CONTENTS[filePath];
+        if (!content) {
+          content = `// ${filePath}\n// File content not available in demo mode`;
+        }
+      } else {
+        const res = await fetch(`/api/file?path=${encodeURIComponent(filePath)}`);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        content = data.content;
+      }
 
       welcomeScreen.style.display = 'none';
       monacoContainer.style.display = 'block';
@@ -101,9 +359,17 @@ document.addEventListener('DOMContentLoaded', async () => {
       addTab(filePath);
       updateBreadcrumb(filePath);
       updateFileTreeSelection(filePath);
+      appendLog(`[File] Opened: ${filePath}`);
 
     } catch (err) {
       appendLog(`[Error] Failed to open file: ${err.message}`);
+    }
+  }
+
+  // Auto-open a file in static mode
+  function autoOpenDefaultFile() {
+    if (isStaticMode && !currentFilePath) {
+      setTimeout(() => openFile('src/App.tsx'), 500);
     }
   }
 
@@ -246,10 +512,56 @@ document.addEventListener('DOMContentLoaded', async () => {
   const fileTree = document.getElementById('fileTree');
   const projectName = document.getElementById('projectName');
   let projectRoot = '';
+  let isStaticMode = false; // Set to true when server is unavailable
+
+  // Static mock file tree for GitHub Pages deployment
+  const MOCK_FILE_TREE = [
+    { name: 'src', path: 'src', isDirectory: true },
+    { name: 'components', path: 'src/components', isDirectory: true },
+    { name: 'App.tsx', path: 'src/App.tsx', isDirectory: false },
+    { name: 'index.tsx', path: 'src/index.tsx', isDirectory: false },
+    { name: 'styles.css', path: 'src/styles.css', isDirectory: false },
+    { name: 'utils', path: 'src/utils', isDirectory: true },
+    { name: 'helpers.ts', path: 'src/utils/helpers.ts', isDirectory: false },
+    { name: 'api.ts', path: 'src/utils/api.ts', isDirectory: false },
+    { name: 'public', path: 'public', isDirectory: true },
+    { name: 'index.html', path: 'public/index.html', isDirectory: false },
+    { name: 'package.json', path: 'package.json', isDirectory: false },
+    { name: 'tsconfig.json', path: 'tsconfig.json', isDirectory: false },
+    { name: 'README.md', path: 'README.md', isDirectory: false },
+  ];
+
+  // Organize mock files into tree structure
+  function buildMockTree(files) {
+    const root = [];
+    const dirs = {};
+
+    // First pass: create directory nodes
+    files.filter(f => f.isDirectory).forEach(f => {
+      dirs[f.path] = { ...f, children: [] };
+    });
+
+    // Second pass: assign files to directories or root
+    files.forEach(f => {
+      const parts = f.path.split('/');
+      if (parts.length === 1) {
+        root.push(f);
+      } else {
+        const parentPath = parts.slice(0, -1).join('/');
+        if (dirs[parentPath]) {
+          dirs[parentPath].children.push(f);
+        }
+      }
+    });
+
+    // Return top-level items
+    return files.filter(f => !f.path.includes('/') || f.path.split('/').length === 1);
+  }
 
   async function loadFileTree(dir = '') {
     try {
       const res = await fetch(`/api/files${dir ? `?dir=${encodeURIComponent(dir)}` : ''}`);
+      if (!res.ok) throw new Error('Server not available');
       const { files, root, error } = await res.json();
       if (error) throw new Error(error);
 
@@ -259,7 +571,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       fileTree.innerHTML = '';
       renderFiles(files, fileTree, 0);
     } catch (err) {
-      appendLog(`[Error] Failed to load files: ${err.message}`);
+      // Fall back to static mock data
+      isStaticMode = true;
+      appendLog('[IDE] Running in static mode (no server)');
+      projectName.textContent = 'MyProject';
+      fileTree.innerHTML = '';
+      const topLevel = MOCK_FILE_TREE.filter(f => !f.path.includes('/'));
+      renderFiles(topLevel, fileTree, 0);
     }
   }
 
@@ -277,8 +595,9 @@ document.addEventListener('DOMContentLoaded', async () => {
           if (item.classList.contains('expanded')) {
             // Collapse
             item.classList.remove('expanded');
+            item.querySelector('.icon').textContent = '📁';
             let next = item.nextElementSibling;
-            while (next && next.classList.contains('nested')) {
+            while (next && (next.classList.contains('nested') || next.classList.contains('nested-2'))) {
               const toRemove = next;
               next = next.nextElementSibling;
               toRemove.remove();
@@ -286,8 +605,21 @@ document.addEventListener('DOMContentLoaded', async () => {
           } else {
             // Expand
             item.classList.add('expanded');
-            const res = await fetch(`/api/files?dir=${encodeURIComponent(file.path)}`);
-            const { files: subFiles } = await res.json();
+            item.querySelector('.icon').textContent = '📂';
+
+            let subFiles = [];
+            if (isStaticMode) {
+              // Use mock data
+              subFiles = MOCK_FILE_TREE.filter(f => {
+                const parts = f.path.split('/');
+                return parts.length > 1 && parts.slice(0, -1).join('/') === file.path;
+              });
+            } else {
+              const res = await fetch(`/api/files?dir=${encodeURIComponent(file.path)}`);
+              const data = await res.json();
+              subFiles = data.files || [];
+            }
+
             const tempContainer = document.createElement('div');
             renderFiles(subFiles, tempContainer, depth + 1);
             // Insert after this item
@@ -827,4 +1159,5 @@ document.addEventListener('DOMContentLoaded', async () => {
   await checkAuthStatus();
   appendLog('[IDE] Ready - Monaco Editor loaded');
   appendLog('[IDE] Select "Agent" mode to let Copilot edit files');
+  autoOpenDefaultFile();
 });
