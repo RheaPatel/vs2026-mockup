@@ -8,8 +8,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   const GITHUB_OAUTH = {
     // GitHub's official Copilot OAuth App Client ID (public)
     clientId: 'Iv1.b507a08c87ecfe98',
-    // Use CORS proxy for OAuth endpoints (GitHub doesn't allow CORS from browsers)
-    corsProxy: 'https://corsproxy.io/?',
+    // OAuth proxy URL - deploy oauth-worker.js to Cloudflare Workers and set this URL
+    // Set to null to disable OAuth and use PAT-only mode
+    proxyUrl: null, // e.g., 'https://your-worker.your-subdomain.workers.dev'
     deviceCodeUrl: 'https://github.com/login/device/code',
     tokenUrl: 'https://github.com/login/oauth/access_token',
     copilotApiUrl: 'https://api.githubcopilot.com/chat/completions',
@@ -142,9 +143,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // --- GitHub Device Flow Authentication ---
   async function startDeviceFlow() {
+    if (!GITHUB_OAUTH.proxyUrl) {
+      throw new Error('OAuth proxy not configured. Please use a Personal Access Token instead.');
+    }
+
     try {
-      // Step 1: Request device code (via CORS proxy since GitHub doesn't allow browser CORS)
-      const proxyUrl = GITHUB_OAUTH.corsProxy + encodeURIComponent(GITHUB_OAUTH.deviceCodeUrl);
+      // Step 1: Request device code via OAuth proxy
+      const proxyUrl = `${GITHUB_OAUTH.proxyUrl}?endpoint=device_code`;
       const codeResponse = await fetch(proxyUrl, {
         method: 'POST',
         headers: {
@@ -186,8 +191,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       await new Promise(resolve => setTimeout(resolve, pollInterval));
 
       try {
-        // Use CORS proxy for token endpoint
-        const proxyUrl = GITHUB_OAUTH.corsProxy + encodeURIComponent(GITHUB_OAUTH.tokenUrl);
+        // Use OAuth proxy for token endpoint
+        const proxyUrl = `${GITHUB_OAUTH.proxyUrl}?endpoint=access_token`;
         const tokenResponse = await fetch(proxyUrl, {
           method: 'POST',
           headers: {
@@ -1581,28 +1586,65 @@ src/
     const isGitHubPages = isStaticMode;
 
     if (isGitHubPages) {
-      // GitHub Pages: Show Device Flow sign-in button (uses CORS proxy)
-      overlay.innerHTML = `
-        <div class="auth-modal">
-          <div class="auth-icon">
-            <svg width="64" height="64" viewBox="0 0 16 16">
-              <path fill="#fff" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
-            </svg>
-          </div>
-          <h2>Sign in with GitHub</h2>
-          <p>Connect your GitHub account to use Copilot chat features.</p>
-          <div class="auth-actions">
-            <button class="auth-btn primary" id="startAuthBtn">
-              <svg width="16" height="16" viewBox="0 0 16 16" style="margin-right: 8px; vertical-align: middle;">
-                <path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+      // GitHub Pages: Show OAuth Device Flow if proxy configured, otherwise PAT entry
+      const hasOAuthProxy = !!GITHUB_OAUTH.proxyUrl;
+
+      if (hasOAuthProxy) {
+        // OAuth Device Flow UI
+        overlay.innerHTML = `
+          <div class="auth-modal">
+            <div class="auth-icon">
+              <svg width="64" height="64" viewBox="0 0 16 16">
+                <path fill="#fff" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
               </svg>
-              Sign in with GitHub
-            </button>
-            <button class="auth-btn secondary" id="skipAuthBtn">Continue Without Auth</button>
+            </div>
+            <h2>Sign in with GitHub</h2>
+            <p>Connect your GitHub account to use Copilot chat features.</p>
+            <div class="auth-actions">
+              <button class="auth-btn primary" id="startAuthBtn">
+                <svg width="16" height="16" viewBox="0 0 16 16" style="margin-right: 8px; vertical-align: middle;">
+                  <path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+                </svg>
+                Sign in with GitHub
+              </button>
+              <button class="auth-btn secondary" id="skipAuthBtn">Continue Without Auth</button>
+            </div>
+            <p class="auth-note">The IDE will work for file browsing, but chat features require authentication.</p>
           </div>
-          <p class="auth-note">The IDE will work for file browsing, but chat features require authentication.</p>
-        </div>
-      `;
+        `;
+      } else {
+        // PAT entry UI (fallback when no OAuth proxy)
+        overlay.innerHTML = `
+          <div class="auth-modal">
+            <div class="auth-icon">
+              <svg width="64" height="64" viewBox="0 0 16 16">
+                <path fill="#fff" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+              </svg>
+            </div>
+            <h2>Sign in with GitHub</h2>
+            <p>Enter a GitHub Personal Access Token with Copilot permissions to use chat features.</p>
+            <div class="auth-token-form">
+              <input type="password" id="patInput" class="pat-input" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" autocomplete="off" />
+              <a href="https://github.com/settings/tokens/new?description=VS2026%20Mockup&scopes=read:user" target="_blank" class="pat-create-link">
+                <svg width="12" height="12" viewBox="0 0 16 16" style="margin-right: 4px; vertical-align: middle;">
+                  <path fill="currentColor" d="M9 2H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V5L9 2zm0 1.5V5h1.5L9 3.5zM5 13V3h3v3h3v7H5z"/>
+                </svg>
+                Create a token on GitHub
+              </a>
+            </div>
+            <div class="auth-actions">
+              <button class="auth-btn primary" id="submitTokenBtn">
+                <svg width="16" height="16" viewBox="0 0 16 16" style="margin-right: 8px; vertical-align: middle;">
+                  <path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+                </svg>
+                Sign In
+              </button>
+              <button class="auth-btn secondary" id="skipAuthBtn">Continue Without Auth</button>
+            </div>
+            <p class="auth-note">Your token is stored locally and never sent to any server except GitHub's API.</p>
+          </div>
+        `;
+      }
     } else {
       // Server mode: Show CLI instructions
       overlay.innerHTML = `
@@ -1629,12 +1671,23 @@ src/
 
     document.body.appendChild(overlay);
 
-    // Attach event listeners
+    // Attach event listeners based on auth mode
     const startAuthBtn = document.getElementById('startAuthBtn');
+    const submitTokenBtn = document.getElementById('submitTokenBtn');
     const skipAuthBtn = document.getElementById('skipAuthBtn');
+    const patInput = document.getElementById('patInput');
 
     if (startAuthBtn) {
       startAuthBtn.addEventListener('click', handleDeviceFlowAuth);
+    }
+
+    if (submitTokenBtn && patInput) {
+      const handleSubmit = () => handleTokenAuth(patInput.value.trim());
+      submitTokenBtn.addEventListener('click', handleSubmit);
+      patInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') handleSubmit();
+      });
+      setTimeout(() => patInput.focus(), 100);
     }
 
     if (skipAuthBtn) {
@@ -1642,6 +1695,109 @@ src/
         overlay.remove();
         appendLog('[Auth] Continuing without authentication');
       });
+    }
+  }
+
+  // Handle Personal Access Token authentication
+  async function handleTokenAuth(token) {
+    if (!token) {
+      alert('Please enter a GitHub Personal Access Token');
+      return;
+    }
+
+    const overlay = document.getElementById('authOverlay');
+    if (!overlay) return;
+
+    const modal = overlay.querySelector('.auth-modal');
+
+    modal.innerHTML = `
+      <div class="auth-icon">
+        <div class="auth-spinner"></div>
+      </div>
+      <h2>Verifying token...</h2>
+      <p>Please wait while we verify your GitHub token.</p>
+    `;
+
+    try {
+      const userInfo = await fetchGitHubUser(token);
+
+      if (!userInfo) {
+        modal.innerHTML = `
+          <div class="auth-icon">
+            <svg width="64" height="64" viewBox="0 0 16 16">
+              <circle cx="8" cy="8" r="7" fill="none" stroke="#f44" stroke-width="1.5"/>
+              <path fill="#f44" d="M8 4v5M8 10.5v1"/>
+            </svg>
+          </div>
+          <h2>Invalid Token</h2>
+          <p>The token could not be verified. Please check that it's correct and has the required permissions.</p>
+          <div class="auth-actions">
+            <button class="auth-btn primary" id="retryAuthBtn">Try Again</button>
+            <button class="auth-btn secondary" id="closeErrorBtn">Close</button>
+          </div>
+        `;
+
+        document.getElementById('retryAuthBtn')?.addEventListener('click', () => {
+          overlay.remove();
+          showAuthPrompt();
+        });
+        document.getElementById('closeErrorBtn')?.addEventListener('click', () => {
+          overlay.remove();
+        });
+
+        appendLog('[Auth] Invalid token provided');
+        return;
+      }
+
+      storeAuthToken(token, userInfo.login);
+
+      modal.innerHTML = `
+        <div class="auth-icon">
+          <svg width="64" height="64" viewBox="0 0 16 16">
+            <circle cx="8" cy="8" r="7" fill="none" stroke="#2ea043" stroke-width="1.5"/>
+            <path fill="#2ea043" d="M6.5 10.5L4 8l1-1 1.5 1.5L10 5l1 1-4.5 4.5z"/>
+          </svg>
+        </div>
+        <h2>Successfully signed in!</h2>
+        <p>Welcome, ${userInfo.login}! You can now use Copilot features.</p>
+        <div class="auth-actions">
+          <button class="auth-btn primary" id="closeAuthBtn">Get Started</button>
+        </div>
+      `;
+
+      document.getElementById('closeAuthBtn')?.addEventListener('click', () => {
+        overlay.remove();
+      });
+
+      appendLog(`[Auth] Signed in as: ${userInfo.login}`);
+      appendLog('[Auth] GitHub Copilot ready');
+      updateUserAvatar();
+
+    } catch (err) {
+      modal.innerHTML = `
+        <div class="auth-icon">
+          <svg width="64" height="64" viewBox="0 0 16 16">
+            <circle cx="8" cy="8" r="7" fill="none" stroke="#f44" stroke-width="1.5"/>
+            <path fill="#f44" d="M8 4v5M8 10.5v1"/>
+          </svg>
+        </div>
+        <h2>Connection Error</h2>
+        <p>Failed to verify token. Please check your internet connection and try again.</p>
+        <div class="auth-actions">
+          <button class="auth-btn primary" id="retryAuthBtn">Try Again</button>
+          <button class="auth-btn secondary" id="closeErrorBtn">Close</button>
+        </div>
+      `;
+
+      document.getElementById('retryAuthBtn')?.addEventListener('click', () => {
+        overlay.remove();
+        showAuthPrompt();
+      });
+      document.getElementById('closeErrorBtn')?.addEventListener('click', () => {
+        overlay.remove();
+      });
+
+      appendLog(`[Auth] Error: ${err.message}`);
     }
   }
 
