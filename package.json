@@ -5,11 +5,15 @@
   "private": true,
   "description": "VS 2026 mockup with live Copilot chat via GitHub Copilot SDK",
   "scripts": {
-    "start": "GH_TOKEN=$(/opt/homebrew/bin/gh auth token) node server.js"
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "setup": "gh auth login -h github.com -p https -w",
+    "check-auth": "gh auth status"
   },
   "dependencies": {
     "@github/copilot-sdk": "^0.1.0",
     "cors": "^2.8.5",
-    "express": "^4.21.2"
+    "express": "^4.21.2",
+    "monaco-editor": "^0.55.1"
   }
 }
