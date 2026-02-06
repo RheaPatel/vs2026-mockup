@@ -263,10 +263,54 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // --- GitHub Copilot API Integration ---
+  let copilotSessionToken = null;
+  let copilotTokenExpiry = 0;
+
+  // Get a Copilot session token by exchanging the GitHub OAuth token via proxy
+  async function getCopilotToken() {
+    // Return cached token if still valid (with 60s buffer)
+    if (copilotSessionToken && Date.now() < copilotTokenExpiry - 60000) {
+      return copilotSessionToken;
+    }
+
+    if (!GITHUB_OAUTH.proxyUrl) {
+      throw new Error('OAuth proxy not configured. Cannot exchange Copilot token.');
+    }
+
+    appendLog('[Copilot] Exchanging token...');
+    const response = await fetch(`${GITHUB_OAUTH.proxyUrl}?endpoint=copilot_token`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${githubAccessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({}),
+    });
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      if (response.status === 401) {
+        clearStoredAuth();
+        throw new Error('Session expired. Please sign in again.');
+      }
+      throw new Error(data.details || data.error || `Copilot token exchange failed: ${response.status}`);
+    }
+
+    const data = await response.json();
+    copilotSessionToken = data.token;
+    // Token has an expires_at field (unix timestamp)
+    copilotTokenExpiry = data.expires_at ? data.expires_at * 1000 : Date.now() + 1800000;
+    appendLog('[Copilot] Token obtained');
+    return copilotSessionToken;
+  }
+
   async function* streamCopilotAPI(messages, mode) {
     if (!githubAccessToken) {
       throw new Error('Not authenticated. Please sign in with GitHub.');
     }
+
+    // Get a Copilot session token (exchanges GitHub OAuth token)
+    const token = await getCopilotToken();
 
     // Build the system message based on mode
     const systemMessage = mode === 'agent'
@@ -278,38 +322,38 @@ document.addEventListener('DOMContentLoaded', async () => {
       ...messages
     ];
 
+    const requestBody = JSON.stringify({
+      model: 'gpt-4',
+      messages: apiMessages,
+      stream: true,
+      temperature: 0.7,
+      max_tokens: 4096
+    });
+
     try {
-      const response = await fetch('https://api.githubcopilot.com/chat/completions', {
+      // Route through the Cloudflare Worker proxy to avoid CORS
+      const response = await fetch(`${GITHUB_OAUTH.proxyUrl}?endpoint=copilot_chat`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${githubAccessToken}`,
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'Editor-Version': 'vscode/1.85.0',
-          'Editor-Plugin-Version': 'copilot-chat/0.12.0',
-          'Openai-Organization': 'github-copilot',
-          'Copilot-Integration-Id': 'vscode-chat'
         },
-        body: JSON.stringify({
-          model: 'gpt-4',
-          messages: apiMessages,
-          stream: true,
-          temperature: 0.7,
-          max_tokens: 4096
-        })
+        body: requestBody,
       });
 
       if (!response.ok) {
         if (response.status === 401) {
-          // Token expired or invalid
+          // Copilot token expired — clear it and retry once
+          copilotSessionToken = null;
+          copilotTokenExpiry = 0;
           clearStoredAuth();
           throw new Error('Session expired. Please sign in again.');
         }
         if (response.status === 403) {
           throw new Error('GitHub Copilot access denied. Please ensure you have an active Copilot subscription.');
         }
-        const errorText = await response.text();
-        throw new Error(`Copilot API error: ${response.status} - ${errorText}`);
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.details || errorData.error || `Copilot API error: ${response.status}`);
       }
 
       const reader = response.body.getReader();
