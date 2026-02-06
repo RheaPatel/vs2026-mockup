@@ -1319,22 +1319,32 @@ src/
 
       let fullText = '';
       let firstToken = true;
+      let tokenCount = 0;
 
       try {
         appendLog('[Copilot] Sending request...');
+        appendLog(`[API] POST copilot_chat (mode: ${mode})`);
+        const userMsg = messages[messages.length - 1]?.content || '';
+        appendLog(`[API] User prompt: "${userMsg.length > 80 ? userMsg.slice(0, 80) + '...' : userMsg}"`);
+
         for await (const event of streamCopilotAPI(messages, mode)) {
           if (event.type === 'text') {
+            tokenCount++;
             if (firstToken) {
               firstToken = false;
               if (onFirstToken) onFirstToken();
+              appendLog(`[Copilot] Token #1: "${event.content}"`);
+            } else if (tokenCount <= 3) {
+              appendLog(`[Copilot] Token #${tokenCount}: "${event.content}"`);
             }
             fullText += event.content;
             textEl.innerHTML = renderMarkdown(fullText);
             chatMessages.scrollTop = chatMessages.scrollHeight;
           }
         }
-        appendLog('[Copilot] Response complete');
+        appendLog(`[Copilot] Response complete. Total tokens: ${tokenCount}`);
       } catch (err) {
+        appendLog(`[Copilot] Error: ${err.message}`);
         if (err.message.includes('Session expired') || err.message.includes('sign in')) {
           showAuthPrompt();
         }
