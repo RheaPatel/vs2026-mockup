@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     clientId: 'Iv1.b507a08c87ecfe98',
     // OAuth proxy URL - deploy oauth-worker.js to Cloudflare Workers and set this URL
     // Set to null to disable OAuth and use PAT-only mode
-    proxyUrl: null, // e.g., 'https://your-worker.your-subdomain.workers.dev'
+    proxyUrl: 'https://github-oauth-proxy.rheapatel23.workers.dev',
     deviceCodeUrl: 'https://github.com/login/device/code',
     tokenUrl: 'https://github.com/login/oauth/access_token',
     copilotApiUrl: 'https://api.githubcopilot.com/chat/completions',
