@@ -1,0 +1,36 @@
+body {
+  font-family: Arial, sans-serif;
+  background: #f4f4f4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+#game {
+  margin-top: 40px;
+}
+#board {
+  display: grid;
+  grid-template-columns: repeat(3, 80px);
+  grid-template-rows: repeat(3, 80px);
+  gap: 8px;
+}
+.square {
+  width: 80px;
+  height: 80px;
+  background: #fff;
+  border: 2px solid #333;
+  font-size: 2.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+#status {
+  margin-top: 20px;
+  font-size: 1.2rem;
+}
+#reset {
+  margin-top: 15px;
+  padding: 8px 20px;
+  font-size: 1rem;
+}

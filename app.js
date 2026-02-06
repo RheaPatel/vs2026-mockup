@@ -1085,7 +1085,7 @@ src/
   });
 
   // --- Agent Mode & Model Selection ---
-  let currentMode = 'ask';
+  let currentMode = 'agent';
   let currentModel = 'gpt-4.1';
 
   const agentSelector = document.getElementById('agentSelector');
@@ -1265,7 +1265,8 @@ src/
   }
 
   // Stream response from API with tool call handling
-  async function streamFromAPI(messages, mode, textEl, onFirstToken) {
+  let toolIdCounter = 0;
+  async function streamFromAPI(messages, mode, textEl, toolArea, onFirstToken) {
     // In static mode, use GitHub Copilot API directly
     if (isStaticMode) {
       if (!isAuthenticated()) {
@@ -1290,7 +1291,6 @@ src/
         }
         appendLog('[Copilot] Response complete');
       } catch (err) {
-        // If auth error, prompt for re-authentication
         if (err.message.includes('Session expired') || err.message.includes('sign in')) {
           showAuthPrompt();
         }
@@ -1314,6 +1314,8 @@ src/
     let fullText = '';
     let buffer = '';
     let firstToken = true;
+    // Track active tool indicators by unique ID
+    const activeToolIndicators = new Map();
 
     while (true) {
       const { done, value } = await reader.read();
@@ -1342,58 +1344,77 @@ src/
             textEl.innerHTML = renderMarkdown(fullText);
             chatMessages.scrollTop = chatMessages.scrollHeight;
           } else if (event.type === 'toolStatus') {
-            // Show tool activity in the chat
             const toolName = event.tool;
             const status = event.status;
+            const toolTarget = event.path || event.directory || '';
+            // Unique key for this specific tool invocation
+            const toolKey = `${toolName}-${toolTarget}`;
 
             if (status === 'running') {
-              // Show tool is running
-              const toolIndicator = document.createElement('div');
-              toolIndicator.className = 'tool-indicator';
-              toolIndicator.id = `tool-${toolName}-indicator`;
+              const uid = `tool-${++toolIdCounter}`;
+              const indicator = document.createElement('div');
+              indicator.className = 'tool-indicator tool-running';
+              indicator.id = uid;
+              activeToolIndicators.set(toolKey, uid);
+
               if (toolName === 'listFiles') {
-                toolIndicator.innerHTML = `<span class="tool-icon">📂</span> Exploring ${event.directory || 'directory'}...`;
+                indicator.innerHTML = `<span class="tool-spinner"></span> <span class="tool-label">Exploring <strong>${escapeHtml(toolTarget || '.')}</strong></span>`;
               } else if (toolName === 'readFile') {
-                toolIndicator.innerHTML = `<span class="tool-icon">📖</span> Reading ${event.path}...`;
+                indicator.innerHTML = `<span class="tool-spinner"></span> <span class="tool-label">Reading <strong>${escapeHtml(toolTarget)}</strong></span>`;
               } else if (toolName === 'writeFile') {
-                toolIndicator.innerHTML = `<span class="tool-icon">✏️</span> Writing ${event.path}...`;
+                indicator.innerHTML = `<span class="tool-spinner"></span> <span class="tool-label">Writing <strong>${escapeHtml(toolTarget)}</strong></span>`;
               }
-              textEl.appendChild(toolIndicator);
+
+              if (toolArea) {
+                toolArea.appendChild(indicator);
+              } else {
+                textEl.appendChild(indicator);
+              }
               chatMessages.scrollTop = chatMessages.scrollHeight;
-              appendLog(`[Agent] ${toolName}: ${event.path || event.directory || ''}`);
+
             } else if (status === 'success') {
-              // Update indicator to show success
-              const indicator = document.getElementById(`tool-${toolName}-indicator`);
+              const uid = activeToolIndicators.get(toolKey);
+              const indicator = uid ? document.getElementById(uid) : null;
               if (indicator) {
+                indicator.classList.remove('tool-running');
+                indicator.classList.add('tool-done');
+
                 if (toolName === 'listFiles') {
-                  indicator.innerHTML = `<span class="tool-icon">✅</span> Found ${event.count} items in ${event.directory}`;
+                  const fileCount = event.files || 0;
+                  const dirCount = event.dirs || 0;
+                  indicator.innerHTML = `<span class="tool-icon-done">📂</span> <span class="tool-label">Found <strong>${event.count}</strong> items in <strong>${escapeHtml(toolTarget)}</strong> <span class="tool-detail">(${fileCount} files, ${dirCount} folders)</span></span>`;
                 } else if (toolName === 'readFile') {
-                  indicator.innerHTML = `<span class="tool-icon">✅</span> Read ${event.path}`;
+                  indicator.innerHTML = `<span class="tool-icon-done">📄</span> <span class="tool-label">Read <strong>${escapeHtml(toolTarget)}</strong> <span class="tool-detail">${event.lines} lines, ${event.bytes} bytes</span></span>`;
                 } else if (toolName === 'writeFile') {
-                  indicator.innerHTML = `<span class="tool-icon">✅</span> Wrote ${event.path} (${event.bytesWritten} bytes)`;
-                  // Open the file and refresh tree
-                  setTimeout(async () => {
-                    await openFile(event.path);
-                    loadFileTree();
-                  }, 100);
+                  const fileName = toolTarget.split('/').pop();
+                  indicator.classList.add('tool-write');
+                  indicator.innerHTML = `
+                    <span class="tool-icon-done">✏️</span>
+                    <span class="tool-label">Wrote <strong>${escapeHtml(toolTarget)}</strong> <span class="tool-detail">${event.lines} lines, ${event.bytesWritten || event.bytes} bytes</span></span>
+                    <button class="tool-open-btn" data-path="${escapeHtml(toolTarget)}">Open ${escapeHtml(fileName)}</button>
+                  `;
+                  // Attach click handler for open button
+                  indicator.querySelector('.tool-open-btn')?.addEventListener('click', (e) => {
+                    openFile(e.target.dataset.path);
+                  });
+                  // Refresh file tree
+                  loadFileTree();
                 }
-                indicator.classList.add('tool-success');
               }
+              chatMessages.scrollTop = chatMessages.scrollHeight;
+
             } else if (status === 'error') {
-              const indicator = document.getElementById(`tool-${toolName}-indicator`);
+              const uid = activeToolIndicators.get(toolKey);
+              const indicator = uid ? document.getElementById(uid) : null;
               if (indicator) {
-                indicator.innerHTML = `<span class="tool-icon">❌</span> Failed: ${event.error}`;
+                indicator.classList.remove('tool-running');
                 indicator.classList.add('tool-error');
+                indicator.innerHTML = `<span class="tool-icon-done">❌</span> <span class="tool-label">Failed: ${escapeHtml(event.error || 'Unknown error')}</span>`;
               }
             }
           } else if (event.type === 'tool') {
-            // Legacy tool event - refresh the file if it was written
+            // Legacy tool event
             if (event.name === 'writeFile' && event.result?.success) {
-              const filePath = event.args?.path;
-              if (filePath) {
-                await openFile(filePath);
-                appendLog(`[Agent] Modified: ${filePath}`);
-              }
               loadFileTree();
             }
           } else if (event.type === 'error') {
@@ -1439,28 +1460,16 @@ src/
 
     ThreadManager.addMessage('user', text);
 
-    // Show thinking indicator
-    const thinkingMsg = document.createElement('div');
-    thinkingMsg.className = 'chat-msg copilot-msg';
-    thinkingMsg.id = 'thinkingMsg';
-    thinkingMsg.innerHTML = `
-      <div class="msg-avatar copilot-avatar">${COPILOT_AVATAR_SVG}</div>
-      <div class="msg-body">
-        <div class="msg-name">Copilot ${currentMode === 'agent' ? '(Agent)' : ''}</div>
-        <div class="msg-text"><div class="thinking-dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div></div>
-      </div>
-    `;
-    chatMessages.appendChild(thinkingMsg);
-    chatMessages.scrollTop = chatMessages.scrollHeight;
-
-    // Create response element
+    // Create response element immediately (so tool indicators can be appended)
     const copilotMsg = document.createElement('div');
     copilotMsg.className = 'chat-msg copilot-msg';
+    const isAgent = currentMode === 'agent';
     copilotMsg.innerHTML = `
       <div class="msg-avatar copilot-avatar">${COPILOT_AVATAR_SVG}</div>
       <div class="msg-body">
-        <div class="msg-name">Copilot ${currentMode === 'agent' ? '(Agent)' : ''}</div>
-        <div class="msg-text"></div>
+        <div class="msg-name">Copilot ${isAgent ? '(Agent)' : ''}</div>
+        ${isAgent ? '<div class="tool-activity-area"></div>' : ''}
+        <div class="msg-text"><div class="thinking-dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div></div>
         <div class="msg-actions" style="display:none;">
           <button class="msg-action-btn">👍</button>
           <button class="msg-action-btn">👎</button>
@@ -1468,6 +1477,10 @@ src/
         </div>
       </div>
     `;
+    chatMessages.appendChild(copilotMsg);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+
+    const toolArea = copilotMsg.querySelector('.tool-activity-area');
     const textEl = copilotMsg.querySelector('.msg-text');
     const actionsEl = copilotMsg.querySelector('.msg-actions');
 
@@ -1476,19 +1489,17 @@ src/
         [...ThreadManager.getMessages().slice(0, -1), { role: 'user', content: messageText }],
         currentMode,
         textEl,
+        toolArea,
         () => {
-          document.getElementById('thinkingMsg')?.remove();
-          chatMessages.appendChild(copilotMsg);
-          chatMessages.scrollTop = chatMessages.scrollHeight;
+          // Replace thinking dots with empty text on first token
+          textEl.innerHTML = '';
         }
       );
 
       actionsEl.style.display = '';
       ThreadManager.addMessage('assistant', fullText);
     } catch (err) {
-      document.getElementById('thinkingMsg')?.remove();
       textEl.innerHTML = `<p style="color: #f44;"><strong>Error:</strong> ${escapeHtml(err.message)}</p>`;
-      chatMessages.appendChild(copilotMsg);
     }
 
     chatMessages.scrollTop = chatMessages.scrollHeight;

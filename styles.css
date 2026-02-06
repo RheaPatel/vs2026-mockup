@@ -51,6 +51,33 @@ body {
   user-select: none;
 }
 
+#snake-canvas {
+  background: #222;
+  border-radius: 8px;
+  box-shadow: 0 0 8px #000;
+  margin: auto;
+  display: block;
+}
+
+.snake-game-section h2 {
+  color: var(--accent);
+  margin-bottom: 12px;
+}
+
+.snake-game-section button {
+  margin-top: 12px;
+  padding: 8px 16px;
+  border-radius: 4px;
+  background: #0078d4;
+  color: #fff;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+}
+.snake-game-section button:hover {
+  background: #1a8fff;
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -668,18 +695,71 @@ body {
 }
 @keyframes blink { 50% { opacity: 0; } }
 
+/* Tool activity area in agent messages */
+.tool-activity-area {
+  display: flex; flex-direction: column; gap: 3px;
+  margin-bottom: 8px;
+}
+.tool-activity-area:empty { display: none; }
+
 /* Tool indicators in chat */
 .tool-indicator {
   display: flex; align-items: center; gap: 8px;
-  padding: 8px 12px; margin: 6px 0;
-  background: var(--bg-medium); border-left: 3px solid var(--accent);
-  border-radius: 0 var(--radius) var(--radius) 0;
+  padding: 6px 10px; margin: 0;
+  background: var(--bg-medium); border: 1px solid var(--border);
+  border-radius: var(--radius);
   font-size: 12px; color: var(--text-dim);
   animation: fadeIn 0.2s ease-out;
+  min-height: 32px;
 }
-.tool-indicator .tool-icon { font-size: 14px; }
-.tool-indicator.tool-success { border-left-color: var(--green); color: var(--green); }
-.tool-indicator.tool-error { border-left-color: var(--red); color: var(--red); }
+.tool-indicator .tool-label { flex: 1; }
+.tool-indicator .tool-label strong { color: var(--text); font-weight: 500; }
+.tool-indicator .tool-detail { color: var(--text-dimmer); font-size: 11px; margin-left: 4px; }
+.tool-indicator .tool-icon-done { font-size: 13px; flex-shrink: 0; }
+
+/* Spinner for running tools */
+.tool-spinner {
+  width: 14px; height: 14px; flex-shrink: 0;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+/* Running state */
+.tool-indicator.tool-running {
+  border-color: var(--accent);
+  background: rgba(0, 120, 212, 0.08);
+}
+
+/* Done state */
+.tool-indicator.tool-done {
+  border-color: var(--border);
+  background: var(--bg-medium);
+}
+
+/* Write file - highlighted */
+.tool-indicator.tool-write {
+  border-color: var(--green);
+  background: rgba(78, 201, 176, 0.08);
+}
+.tool-indicator.tool-write .tool-label strong { color: var(--green); }
+
+/* Open file button */
+.tool-open-btn {
+  background: var(--bg-lighter); border: 1px solid var(--border);
+  color: var(--accent-light); padding: 2px 8px; border-radius: var(--radius);
+  cursor: pointer; font-size: 11px; font-family: var(--font-ui);
+  white-space: nowrap; flex-shrink: 0;
+}
+.tool-open-btn:hover { background: var(--bg-hover); border-color: var(--accent); }
+
+/* Error state */
+.tool-indicator.tool-error {
+  border-color: var(--red);
+  background: rgba(244, 71, 71, 0.08);
+  color: var(--red);
+}
 
 /* Thinking dots */
 .thinking-dots { display: flex; gap: 4px; padding: 8px 0; }
