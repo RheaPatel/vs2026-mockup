@@ -1484,17 +1484,38 @@ src/
   }
 
   async function sendMessage() {
-    const text = chatInput.value.trim();
+    let text = chatInput.value.trim();
     if (!text) return;
+
+    // Handle slash commands that are local-only
+    if (text.startsWith('/')) {
+      const handled = handleSlashCommand(text);
+      if (handled) {
+        chatInput.value = '';
+        slashMenu.classList.remove('visible');
+        return;
+      }
+      // If handleSlashCommand modified chatInput.value (transform commands), read it
+      text = chatInput.value.trim();
+      if (!text) return;
+    }
 
     // Remove welcome screen
     const welcome = document.querySelector('.welcome-screen');
     if (welcome) welcome.remove();
 
-    // Add context about current file if in agent mode
+    // Prepend attached file contents if any
     let messageText = text;
+    if (attachedFiles.length > 0) {
+      const fileContexts = attachedFiles.map(f => `--- File: ${f.name} ---\n${f.content}\n--- End ${f.name} ---`).join('\n\n');
+      messageText = `${fileContexts}\n\n${text}`;
+      attachedFiles = [];
+      renderContextChips();
+    }
+
+    // Add context about current file if in agent mode
     if (currentMode === 'agent' && currentFilePath && currentFilePath !== 'welcome') {
-      messageText = `[Current file: ${currentFilePath}]\n\n${text}`;
+      messageText = `[Current file: ${currentFilePath}]\n\n${messageText}`;
     }
 
     // Add user message to UI
@@ -1525,9 +1546,9 @@ src/
         ${isAgent ? '<div class="tool-activity-area"></div>' : ''}
         <div class="msg-text"><div class="thinking-dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div></div>
         <div class="msg-actions" style="display:none;">
-          <button class="msg-action-btn">👍</button>
-          <button class="msg-action-btn">👎</button>
-          <button class="msg-action-btn">📋 Copy</button>
+          <button class="msg-action-btn thumbs-up-btn">👍</button>
+          <button class="msg-action-btn thumbs-down-btn">👎</button>
+          <button class="msg-action-btn copy-btn">📋 Copy</button>
         </div>
       </div>
     `;
@@ -1551,6 +1572,7 @@ src/
       );
 
       actionsEl.style.display = '';
+      wireMessageActions(actionsEl, fullText);
       ThreadManager.addMessage('assistant', fullText);
     } catch (err) {
       textEl.innerHTML = `<p style="color: #f44;"><strong>Error:</strong> ${escapeHtml(err.message)}</p>`;
@@ -1567,11 +1589,11 @@ src/
     }
   });
 
-  // Welcome action buttons
+  // Welcome action buttons — populate input and auto-send
   document.querySelectorAll('.welcome-action-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       chatInput.value = btn.textContent.trim();
-      chatInput.focus();
+      sendMessage();
     });
   });
 
@@ -2005,11 +2027,498 @@ src/
     }
   }
 
+  // --- Wire Message Actions (Copy, Thumbs Up/Down) ---
+  function wireMessageActions(actionsEl, fullText) {
+    // Copy button
+    const copyBtn = actionsEl.querySelector('.copy-btn');
+    if (copyBtn) {
+      copyBtn.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(fullText);
+          copyBtn.textContent = '✅ Copied!';
+          copyBtn.classList.add('copied');
+          appendLog('[Chat] Copied response to clipboard');
+          setTimeout(() => {
+            copyBtn.textContent = '📋 Copy';
+            copyBtn.classList.remove('copied');
+          }, 1500);
+        } catch (e) {
+          appendLog('[Chat] Clipboard copy failed');
+        }
+      });
+    }
+
+    // Thumbs up/down — mutual exclusion
+    const thumbsUp = actionsEl.querySelector('.thumbs-up-btn');
+    const thumbsDown = actionsEl.querySelector('.thumbs-down-btn');
+    if (thumbsUp && thumbsDown) {
+      thumbsUp.addEventListener('click', () => {
+        const wasActive = thumbsUp.classList.contains('active');
+        thumbsUp.classList.toggle('active');
+        thumbsDown.classList.remove('active');
+        appendLog(`[Feedback] ${wasActive ? 'Removed' : 'Added'} thumbs up`);
+      });
+      thumbsDown.addEventListener('click', () => {
+        const wasActive = thumbsDown.classList.contains('active');
+        thumbsDown.classList.toggle('active');
+        thumbsUp.classList.remove('active');
+        appendLog(`[Feedback] ${wasActive ? 'Removed' : 'Added'} thumbs down`);
+      });
+    }
+  }
+
+  // --- Slash Command Handling ---
+  function handleSlashCommand(text) {
+    const parts = text.trim().split(/\s+/);
+    const cmd = parts[0].toLowerCase();
+    const rest = parts.slice(1).join(' ');
+
+    switch (cmd) {
+      case '/clear': {
+        // Clear current thread chat UI + messages
+        chatMessages.innerHTML = '';
+        const thread = ThreadManager.getActiveThread();
+        if (thread) { thread.messages = []; ThreadManager.save(); }
+        appendLog('[Chat] Cleared current thread');
+        return true; // handled locally
+      }
+      case '/clearall': {
+        // Clear all threads
+        chatMessages.innerHTML = '';
+        ThreadManager.threads = [];
+        ThreadManager.createThread();
+        updateThreadSelectLabel();
+        appendLog('[Chat] Cleared all threads');
+        return true;
+      }
+      case '/help': {
+        // Render help text locally
+        const helpMsg = document.createElement('div');
+        helpMsg.className = 'chat-msg copilot-msg';
+        helpMsg.innerHTML = `
+          <div class="msg-avatar copilot-avatar">${COPILOT_AVATAR_SVG}</div>
+          <div class="msg-body">
+            <div class="msg-name">Copilot</div>
+            <div class="msg-text">
+              <div class="help-message">
+                <h4>Copilot Chat Commands</h4>
+                <dl>
+                  <dt>/clear</dt><dd>Clear current thread</dd>
+                  <dt>/clearall</dt><dd>Clear all threads</dd>
+                  <dt>/explain [code]</dt><dd>Explain selected or described code</dd>
+                  <dt>/fix [issue]</dt><dd>Propose a fix for the problem</dd>
+                  <dt>/doc [symbol]</dt><dd>Generate documentation comment</dd>
+                  <dt>/generate [description]</dt><dd>Generate code from description</dd>
+                  <dt>/help</dt><dd>Show this help</dd>
+                </dl>
+              </div>
+            </div>
+          </div>
+        `;
+        chatMessages.appendChild(helpMsg);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+        appendLog('[Chat] Displayed help');
+        return true;
+      }
+      case '/explain': {
+        // Transform into a richer prompt
+        const target = rest || (currentFilePath && currentFilePath !== 'welcome' ? `the code in ${currentFilePath}` : 'the selected code');
+        chatInput.value = `Explain the following code in detail: ${target}`;
+        return false; // let it be sent as a regular message
+      }
+      case '/fix': {
+        const target = rest || 'the issues in the current code';
+        chatInput.value = `Propose a fix for: ${target}`;
+        return false;
+      }
+      case '/doc': {
+        const target = rest || (currentFilePath && currentFilePath !== 'welcome' ? `the symbols in ${currentFilePath}` : 'this code');
+        chatInput.value = `Add documentation comments for: ${target}`;
+        return false;
+      }
+      case '/generate': {
+        const target = rest || 'the requested functionality';
+        chatInput.value = `Generate code for: ${target}`;
+        return false;
+      }
+      default:
+        return false; // not handled, send as-is
+    }
+  }
+
+  // --- Attached Files State ---
+  let attachedFiles = []; // { name, content }
+
+  function addAttachedFile(name, content) {
+    attachedFiles.push({ name, content });
+    renderContextChips();
+    appendLog(`[Context] Attached file: ${name}`);
+  }
+
+  function removeAttachedFile(index) {
+    const removed = attachedFiles.splice(index, 1);
+    renderContextChips();
+    if (removed.length) appendLog(`[Context] Removed file: ${removed[0].name}`);
+  }
+
+  function renderContextChips() {
+    let chipsContainer = document.querySelector('.context-chips');
+    if (!chipsContainer) {
+      chipsContainer = document.createElement('div');
+      chipsContainer.className = 'context-chips';
+      const inputWrapper = document.querySelector('.input-wrapper');
+      inputWrapper.parentNode.insertBefore(chipsContainer, inputWrapper);
+    }
+    chipsContainer.innerHTML = '';
+    attachedFiles.forEach((file, i) => {
+      const chip = document.createElement('div');
+      chip.className = 'context-chip';
+      chip.innerHTML = `
+        <span class="chip-icon">📄</span>
+        <span class="chip-name" title="${escapeHtml(file.name)}">${escapeHtml(file.name)}</span>
+        <button class="chip-remove" data-index="${i}">&times;</button>
+      `;
+      chip.querySelector('.chip-remove').addEventListener('click', () => removeAttachedFile(i));
+      chipsContainer.appendChild(chip);
+    });
+  }
+
+  // --- File Picker for Attach ---
+  function openFilePicker() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.txt,.js,.ts,.jsx,.tsx,.json,.html,.css,.md,.py,.rb,.go,.rs,.java,.cs,.cpp,.c,.h,.sh,.yml,.yaml,.xml,.csv,.log';
+    input.addEventListener('change', () => {
+      const file = input.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => addAttachedFile(file.name, reader.result);
+      reader.readAsText(file);
+    });
+    input.click();
+  }
+
+  // --- Attach File Button ---
+  const attachBtn = document.querySelector('.chat-action-icon[title="Attach file"]');
+  attachBtn?.addEventListener('click', () => openFilePicker());
+
+  // --- + Context Button (Context Picker) ---
+  const addContextBtn = document.getElementById('addContextBtn');
+  let contextPicker = null;
+
+  function createContextPicker() {
+    if (contextPicker) { contextPicker.remove(); contextPicker = null; return; }
+    contextPicker = document.createElement('div');
+    contextPicker.className = 'context-picker visible';
+    contextPicker.innerHTML = `
+      <div class="context-picker-item" id="ctxAttachFile">
+        <svg width="16" height="16" viewBox="0 0 16 16"><path fill="currentColor" d="M10.5 2.5a3 3 0 0 0-4.24 0L2.4 6.38a4.5 4.5 0 0 0 6.36 6.36l3.88-3.88-.7-.7-3.89 3.88a3.5 3.5 0 0 1-4.95-4.95l3.88-3.88a2 2 0 0 1 2.83 2.83L6.4 9.47a.5.5 0 0 1-.7-.7l2.47-2.48-.71-.7-2.47 2.47a1.5 1.5 0 0 0 2.12 2.12l3.42-3.43a3 3 0 0 0 0-4.24z"/></svg>
+        Attach local file
+      </div>
+      <div class="context-picker-item" id="ctxCurrentFile">
+        <svg width="16" height="16" viewBox="0 0 16 16"><path fill="currentColor" d="M1.5 1h5l.5.5V6h4.5l.5.5v8l-.5.5h-10l-.5-.5v-13l.5-.5Zm5 5V2H2v12h9V7H7l-.5-.5Z"/></svg>
+        Current open file
+      </div>
+    `;
+    const chatInputArea = document.querySelector('.chat-input-area');
+    chatInputArea.appendChild(contextPicker);
+
+    contextPicker.querySelector('#ctxAttachFile').addEventListener('click', () => {
+      contextPicker.remove(); contextPicker = null;
+      openFilePicker();
+    });
+
+    contextPicker.querySelector('#ctxCurrentFile').addEventListener('click', () => {
+      contextPicker.remove(); contextPicker = null;
+      if (editor && currentFilePath && currentFilePath !== 'welcome') {
+        const content = editor.getValue();
+        addAttachedFile(currentFilePath, content);
+      } else {
+        appendLog('[Context] No file open in editor');
+      }
+    });
+
+    // Close on outside click
+    setTimeout(() => {
+      document.addEventListener('click', function closePicker(e) {
+        if (contextPicker && !contextPicker.contains(e.target) && e.target !== addContextBtn) {
+          contextPicker.remove(); contextPicker = null;
+          document.removeEventListener('click', closePicker);
+        }
+      });
+    }, 0);
+  }
+
+  addContextBtn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    createContextPicker();
+  });
+
+  // --- Voice/Mic Button (Web Speech API) ---
+  const voiceBtn = document.querySelector('.chat-action-icon[title="Voice off"]');
+  let speechRecognition = null;
+  let isListening = false;
+
+  if (voiceBtn) {
+    voiceBtn.addEventListener('click', () => {
+      if (isListening) {
+        stopListening();
+        return;
+      }
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognition) {
+        appendLog('[Voice] Speech recognition not supported in this browser');
+        return;
+      }
+      speechRecognition = new SpeechRecognition();
+      speechRecognition.continuous = false;
+      speechRecognition.interimResults = true;
+      speechRecognition.lang = 'en-US';
+
+      speechRecognition.onstart = () => {
+        isListening = true;
+        voiceBtn.classList.add('recording');
+        voiceBtn.title = 'Listening... (click to stop)';
+        appendLog('[Voice] Listening...');
+      };
+
+      speechRecognition.onresult = (event) => {
+        let transcript = '';
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          transcript += event.results[i][0].transcript;
+        }
+        chatInput.value = transcript;
+      };
+
+      speechRecognition.onerror = (event) => {
+        appendLog(`[Voice] Error: ${event.error}`);
+        stopListening();
+      };
+
+      speechRecognition.onend = () => {
+        stopListening();
+        if (chatInput.value.trim()) {
+          appendLog(`[Voice] Transcribed: "${chatInput.value.trim()}"`);
+        }
+      };
+
+      speechRecognition.start();
+    });
+  }
+
+  function stopListening() {
+    isListening = false;
+    if (voiceBtn) {
+      voiceBtn.classList.remove('recording');
+      voiceBtn.title = 'Voice off';
+    }
+    if (speechRecognition) {
+      try { speechRecognition.stop(); } catch (e) {}
+      speechRecognition = null;
+    }
+  }
+
+  // --- Thread Dropdown ---
+  const threadSelect = document.getElementById('threadSelect');
+  let threadDropdown = null;
+
+  function updateThreadSelectLabel() {
+    const thread = ThreadManager.getActiveThread();
+    if (threadSelect && thread) {
+      threadSelect.querySelector('span:not(.thread-chevron)').textContent = thread.title;
+    }
+  }
+
+  function rebuildChatFromThread() {
+    chatMessages.innerHTML = '';
+    const thread = ThreadManager.getActiveThread();
+    if (!thread) return;
+    thread.messages.forEach(m => {
+      if (m.role === 'user') {
+        const msg = document.createElement('div');
+        msg.className = 'chat-msg user-msg';
+        msg.innerHTML = `
+          <div class="msg-avatar user-avatar">RP</div>
+          <div class="msg-body">
+            <div class="msg-name">You</div>
+            <div class="msg-text">${escapeHtml(m.content)}</div>
+          </div>
+        `;
+        chatMessages.appendChild(msg);
+      } else if (m.role === 'assistant') {
+        const msg = document.createElement('div');
+        msg.className = 'chat-msg copilot-msg';
+        msg.innerHTML = `
+          <div class="msg-avatar copilot-avatar">${COPILOT_AVATAR_SVG}</div>
+          <div class="msg-body">
+            <div class="msg-name">Copilot</div>
+            <div class="msg-text">${renderMarkdown(m.content)}</div>
+            <div class="msg-actions">
+              <button class="msg-action-btn thumbs-up-btn">👍</button>
+              <button class="msg-action-btn thumbs-down-btn">👎</button>
+              <button class="msg-action-btn copy-btn">📋 Copy</button>
+            </div>
+          </div>
+        `;
+        chatMessages.appendChild(msg);
+        wireMessageActions(msg.querySelector('.msg-actions'), m.content);
+      }
+    });
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+  }
+
+  function showThreadDropdown() {
+    if (threadDropdown) { threadDropdown.remove(); threadDropdown = null; return; }
+    const threadBar = document.querySelector('.thread-bar');
+    threadDropdown = document.createElement('div');
+    threadDropdown.className = 'thread-dropdown';
+
+    const formatDate = (ts) => {
+      const d = new Date(ts);
+      return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    };
+
+    threadDropdown.innerHTML = `
+      <div class="thread-dropdown-header">
+        <span>Threads</span>
+        <button class="new-thread-btn" id="newThreadBtn">+ New</button>
+      </div>
+      <div class="thread-dropdown-list">
+        ${ThreadManager.threads.map(t => `
+          <div class="thread-dropdown-item ${t.id === ThreadManager.activeThreadId ? 'active' : ''}" data-id="${t.id}">
+            <span class="thread-item-title">${escapeHtml(t.title)}</span>
+            <span class="thread-item-date">${formatDate(t.updatedAt)}</span>
+            <button class="thread-delete-btn" data-id="${t.id}">&times;</button>
+          </div>
+        `).join('')}
+      </div>
+    `;
+    threadBar.appendChild(threadDropdown);
+
+    // New thread button
+    threadDropdown.querySelector('#newThreadBtn').addEventListener('click', () => {
+      ThreadManager.createThread();
+      updateThreadSelectLabel();
+      chatMessages.innerHTML = '';
+      threadDropdown.remove(); threadDropdown = null;
+      appendLog('[Thread] Created new thread');
+    });
+
+    // Switch thread
+    threadDropdown.querySelectorAll('.thread-dropdown-item').forEach(item => {
+      item.addEventListener('click', (e) => {
+        if (e.target.classList.contains('thread-delete-btn')) return;
+        ThreadManager.activeThreadId = item.dataset.id;
+        ThreadManager.save();
+        updateThreadSelectLabel();
+        rebuildChatFromThread();
+        threadDropdown.remove(); threadDropdown = null;
+        appendLog(`[Thread] Switched to: ${ThreadManager.getActiveThread()?.title}`);
+      });
+    });
+
+    // Delete thread
+    threadDropdown.querySelectorAll('.thread-delete-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const id = btn.dataset.id;
+        ThreadManager.threads = ThreadManager.threads.filter(t => t.id !== id);
+        if (ThreadManager.threads.length === 0) {
+          ThreadManager.createThread();
+        }
+        if (ThreadManager.activeThreadId === id) {
+          ThreadManager.activeThreadId = ThreadManager.threads[0].id;
+          rebuildChatFromThread();
+        }
+        ThreadManager.save();
+        updateThreadSelectLabel();
+        threadDropdown.remove(); threadDropdown = null;
+        showThreadDropdown(); // re-open with updated list
+        appendLog('[Thread] Deleted thread');
+      });
+    });
+
+    // Close on outside click
+    setTimeout(() => {
+      document.addEventListener('click', function closeDropdown(e) {
+        if (threadDropdown && !threadDropdown.contains(e.target) && e.target !== threadSelect && !threadSelect.contains(e.target)) {
+          threadDropdown.remove(); threadDropdown = null;
+          document.removeEventListener('click', closeDropdown);
+        }
+      });
+    }, 0);
+  }
+
+  threadSelect?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    showThreadDropdown();
+  });
+
+  // --- Settings Button ---
+  const settingsBtn = document.querySelector('.thread-action-btn[title="Settings"]');
+  settingsBtn?.addEventListener('click', () => {
+    // Remove existing
+    document.querySelector('.settings-overlay')?.remove();
+
+    const overlay = document.createElement('div');
+    overlay.className = 'settings-overlay';
+    overlay.innerHTML = `
+      <div class="settings-modal">
+        <button class="settings-close" id="settingsClose">&times;</button>
+        <h3>Settings</h3>
+        <div class="settings-section">
+          <div class="settings-label">Account</div>
+          <div class="settings-value">${isAuthenticated() ? (githubUser || 'Authenticated') : 'Not signed in'}</div>
+          ${isAuthenticated()
+            ? '<button class="settings-btn danger" id="settingsSignOut">Sign Out</button>'
+            : '<button class="settings-btn" id="settingsSignIn">Sign In with GitHub</button>'}
+        </div>
+        <div class="settings-section">
+          <div class="settings-label">Mode</div>
+          <div class="settings-value">${currentMode.charAt(0).toUpperCase() + currentMode.slice(1)}</div>
+        </div>
+        <div class="settings-section">
+          <div class="settings-label">Threads</div>
+          <div class="settings-value">${ThreadManager.threads.length} thread${ThreadManager.threads.length !== 1 ? 's' : ''}</div>
+          <button class="settings-btn danger" id="settingsClearAll" style="margin-top:8px;">Clear All Threads</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    // Close
+    overlay.querySelector('#settingsClose').addEventListener('click', () => overlay.remove());
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+
+    // Sign out
+    overlay.querySelector('#settingsSignOut')?.addEventListener('click', () => {
+      logout();
+      overlay.remove();
+    });
+
+    // Sign in
+    overlay.querySelector('#settingsSignIn')?.addEventListener('click', () => {
+      overlay.remove();
+      showAuthPrompt();
+    });
+
+    // Clear all threads
+    overlay.querySelector('#settingsClearAll').addEventListener('click', () => {
+      chatMessages.innerHTML = '';
+      ThreadManager.threads = [];
+      ThreadManager.createThread();
+      updateThreadSelectLabel();
+      appendLog('[Settings] Cleared all threads');
+      overlay.remove();
+    });
+  });
+
   // --- Initialize ---
   await initMonaco();
   await loadFileTree();
   updateUserAvatar(); // Update avatar based on auth state
   await checkAuthStatus();
+  updateThreadSelectLabel(); // Show active thread name
   appendLog('[IDE] Ready - Monaco Editor loaded');
   appendLog('[IDE] Select "Agent" mode to let Copilot edit files');
   autoOpenDefaultFile();
